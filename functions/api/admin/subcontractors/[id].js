@@ -39,6 +39,7 @@ export const onRequestPatch = (ctx) =>
       if (field in body) patch[field] = body[field];
     }
     if (patch.invoice_prefix) patch.invoice_prefix = patch.invoice_prefix.toUpperCase();
+    if (patch.username) patch.username = patch.username.trim().toLowerCase();
 
     if (body.password) {
       patch.password_encrypted = await encryptSecret(env, body.password);

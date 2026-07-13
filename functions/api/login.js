@@ -6,14 +6,17 @@ import { json, errorResponse, withHandler } from "../_lib/util.js";
 export const onRequestPost = (ctx) =>
   withHandler(async () => {
     const { request, env } = ctx;
-    const { username, password } = await request.json();
+    const body = await request.json();
+    const password = body.password;
+    // Usernames are not case-sensitive: always compare in lowercase.
+    const username = (body.username || "").trim().toLowerCase();
 
     if (!username || !password) {
       return errorResponse("Username and password are required", 400);
     }
 
     // Master administrator login
-    if (username === env.ADMIN_USERNAME && password === env.ADMIN_PASSWORD) {
+    if (username === env.ADMIN_USERNAME.toLowerCase() && password === env.ADMIN_PASSWORD) {
       const cookie = await createSessionCookie(env, { role: "admin" });
       return json(
         { role: "admin" },

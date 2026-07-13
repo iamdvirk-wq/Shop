@@ -36,7 +36,7 @@ export const onRequestPost = (ctx) =>
     const password_encrypted = await encryptSecret(env, body.password);
 
     const row = await dbInsert(env, "subcontractors", {
-      username: body.username,
+      username: body.username.trim().toLowerCase(),
       password_encrypted,
       legal_name: body.legal_name,
       business_name: body.business_name || null,
