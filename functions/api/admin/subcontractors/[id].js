@@ -1,7 +1,7 @@
 import { requireAdmin } from "../../../_lib/session.js";
-import { dbGet, dbUpdate } from "../../../_lib/db.js";
+import { dbGet, dbUpdate, dbDelete } from "../../../_lib/db.js";
 import { encryptSecret, decryptSecret } from "../../../_lib/crypto.js";
-import { json, errorResponse, withHandler } from "../../../_lib/util.js";
+import { json, errorResponse, withHandler, requirePin } from "../../../_lib/util.js";
 
 async function loadOne(env, id) {
   const rows = await dbGet(env, `subcontractors?id=eq.${id}&select=*&limit=1`);
@@ -71,4 +71,30 @@ export const onRequestPatch = (ctx) =>
     const { password_encrypted, ...rest } = rows[0];
     const password = await decryptSecret(env, password_encrypted);
     return json({ subcontractor: { ...rest, password } });
+  });
+
+// Permanently deletes a subcontractor AND every invoice they've ever
+// submitted. Requires the admin PIN as an extra confirmation — this cannot
+// be undone. Use "Disable account" instead for someone who has simply
+// stopped working for you.
+export const onRequestDelete = (ctx) =>
+  withHandler(async () => {
+    const { request, env, params } = ctx;
+    await requireAdmin(request, env);
+    const body = await request.json().catch(() => ({}));
+    requirePin(body);
+
+    const sub = await loadOne(env, params.id);
+    if (!sub) return errorResponse("Subcontractor not found", 404);
+
+    const invoiceRows = await dbGet(env, `invoices?subcontractor_id=eq.${params.id}&select=id`);
+    if (invoiceRows.length > 0) {
+      const idList = invoiceRows.map((r) => r.id).join(",");
+      await dbDelete(env, "invoice_items", `invoice_id=in.(${idList})`);
+      await dbDelete(env, "invoice_revisions", `invoice_id=in.(${idList})`);
+      await dbDelete(env, "invoices", `subcontractor_id=eq.${params.id}`);
+    }
+
+    await dbDelete(env, "subcontractors", `id=eq.${params.id}`);
+    return json({ ok: true });
   });

@@ -55,6 +55,7 @@ function render() {
   if (!["paid", "cancelled"].includes(invoice.status)) {
     actionButtons.push(`<button class="btn danger" data-action="cancel">Cancel invoice</button>`);
   }
+  actionButtons.push(`<button class="btn danger" data-action="delete">Delete permanently</button>`);
 
   content.innerHTML = `
     <div class="card">
@@ -124,7 +125,6 @@ function render() {
   document.getElementById("days_worked").addEventListener("input", updateTotals);
   document.getElementById("daily_rate_incl_gst").addEventListener("input", updateTotals);
   document.getElementById("saveEdits").addEventListener("click", saveEdits);
-  content.addEventListener("click", handleAction);
 
   loadHistory();
 }
@@ -194,9 +194,23 @@ async function handleAction(e) {
   const btn = e.target.closest("button[data-action]");
   if (!btn) return;
   const action = btn.dataset.action;
-  if (!["review","approve","return","reject","cancel","paid"].includes(action)) return;
   const errorBox = document.getElementById("error");
   errorBox.innerHTML = "";
+
+  if (action === "delete") {
+    if (!confirm("Permanently delete this invoice? This cannot be undone.")) return;
+    const pinBody = promptPin("this invoice");
+    if (!pinBody) return;
+    try {
+      await api.delete(`/admin/invoices/${invoice.id}`, pinBody);
+      window.location.href = "/admin/";
+    } catch (err) {
+      showError(errorBox, err.message);
+    }
+    return;
+  }
+
+  if (!["review","approve","return","reject","cancel","paid"].includes(action)) return;
   try {
     let note;
     if (["return","reject","cancel"].includes(action)) {
@@ -227,6 +241,7 @@ async function loadHistory() {
 (async () => {
   try {
     await requireRole("admin");
+    document.getElementById("content").addEventListener("click", handleAction);
     const res = await api.get(`/admin/invoices/${invoiceId}`);
     invoice = res.invoice;
     render();

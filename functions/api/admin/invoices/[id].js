@@ -1,6 +1,6 @@
 import { requireAdmin } from "../../../_lib/session.js";
 import { dbGet, dbUpdate, dbDelete, dbInsert } from "../../../_lib/db.js";
-import { json, errorResponse, withHandler } from "../../../_lib/util.js";
+import { json, errorResponse, withHandler, requirePin } from "../../../_lib/util.js";
 import { buildDescription, computeInvoice, loadInvoiceWithItems } from "../../../_lib/invoices.js";
 
 export const onRequestGet = (ctx) =>
@@ -74,4 +74,25 @@ export const onRequestPatch = (ctx) =>
     }
 
     return json({ invoice: { ...rows[0], invoice_items: items } });
+  });
+
+// Permanently deletes an invoice (and its items/revision history) — useful
+// for clearing out test invoices. Requires the admin PIN. The invoice
+// number, if one was assigned, still stays permanently reserved (it's just
+// never used again) since we never touch next_invoice_seq here.
+export const onRequestDelete = (ctx) =>
+  withHandler(async () => {
+    const { request, env, params } = ctx;
+    await requireAdmin(request, env);
+    const body = await request.json().catch(() => ({}));
+    requirePin(body);
+
+    const invoice = await loadInvoiceWithItems(env, params.id);
+    if (!invoice) return errorResponse("Invoice not found", 404);
+
+    await dbDelete(env, "invoice_items", `invoice_id=eq.${params.id}`);
+    await dbDelete(env, "invoice_revisions", `invoice_id=eq.${params.id}`);
+    await dbDelete(env, "invoices", `id=eq.${params.id}`);
+
+    return json({ ok: true });
   });

@@ -45,6 +45,16 @@ export function round2(n) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+// Permanent deletes (subcontractors, invoices) require this PIN as an extra
+// confirmation step beyond just being logged in as admin.
+export const DELETE_PIN = "2288";
+
+export function requirePin(body) {
+  if (!body || body.pin !== DELETE_PIN) {
+    throw errorResponse("Incorrect PIN", 403);
+  }
+}
+
 // Wraps a route handler so that guards like requireAdmin() can simply
 // `throw errorResponse(...)` and have it returned to the browser correctly,
 // and any unexpected error becomes a clean 500 instead of a crash.

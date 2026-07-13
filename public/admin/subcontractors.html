@@ -97,6 +97,7 @@ async function loadList() {
       <button class="btn small ${sub.status === 'active' ? 'danger' : ''}" data-action="toggleStatus" data-id="${sub.id}" data-current="${sub.status}">
         ${sub.status === 'active' ? 'Disable account' : 'Re-enable account'}
       </button>
+      <button class="btn small danger" data-action="deleteSub" data-id="${sub.id}">Delete permanently</button>
       <div id="edit_${sub.id}" style="display:none; margin-top:12px;">
         ${fieldsHtml('edit_' + sub.id, sub)}
         <button class="btn" data-action="saveEdit" data-id="${sub.id}">Save changes</button>
@@ -104,8 +105,6 @@ async function loadList() {
     `;
     list.appendChild(card);
   }
-
-  list.addEventListener("click", handleListClick);
 }
 
 async function handleListClick(e) {
@@ -142,6 +141,12 @@ async function handleListClick(e) {
     } else if (action === "rejectPending") {
       await api.patch(`/admin/subcontractors/${id}`, { reject_pending: true });
       loadList();
+    } else if (action === "deleteSub") {
+      if (!confirm("Permanently delete this subcontractor AND every invoice they've ever submitted? This cannot be undone.")) return;
+      const pinBody = promptPin("this subcontractor and all their invoices");
+      if (!pinBody) return;
+      await api.delete(`/admin/subcontractors/${id}`, pinBody);
+      loadList();
     }
   } catch (err) {
     showError(errorBox, err.message);
@@ -151,6 +156,7 @@ async function handleListClick(e) {
 (async () => {
   try {
     await requireRole("admin");
+    document.getElementById("list").addEventListener("click", handleListClick);
     await loadList();
   } catch (err) {
     if (err.message !== "redirecting") showError(document.getElementById("error"), err.message);

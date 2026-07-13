@@ -17,8 +17,16 @@ const api = {
   get(path) { return this.request("GET", path); },
   post(path, body) { return this.request("POST", path, body || {}); },
   patch(path, body) { return this.request("PATCH", path, body || {}); },
-  delete(path) { return this.request("DELETE", path); },
+  delete(path, body) { return this.request("DELETE", path, body); },
 };
+
+// Prompts for the deletion PIN before a permanent-delete action. Returns
+// null (caller should abort) if the user cancels.
+function promptPin(what) {
+  const pin = window.prompt(`Type the PIN to permanently delete ${what}. This cannot be undone.`);
+  if (pin === null) return null;
+  return { pin };
+}
 
 function money(n) {
   return `$${Number(n || 0).toFixed(2)}`;
