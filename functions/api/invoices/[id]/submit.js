@@ -2,6 +2,8 @@ import { requireSubcontractor } from "../../../_lib/session.js";
 import { dbGet, dbUpdate, dbRpc, dbInsert } from "../../../_lib/db.js";
 import { json, errorResponse, withHandler } from "../../../_lib/util.js";
 import { findOverlappingInvoice, loadInvoiceWithItems } from "../../../_lib/invoices.js";
+import { generateInvoicePdf, pdfFilename } from "../../../_lib/pdf.js";
+import { sendEmailWithPdf } from "../../../_lib/email.js";
 
 export const onRequestPost = (ctx) =>
   withHandler(async () => {
@@ -73,5 +75,34 @@ export const onRequestPost = (ctx) =>
       updated_at: now,
     });
 
-    return json({ invoice: { ...updated[0], invoice_items: invoice.invoice_items } });
+    const fullInvoice = { ...updated[0], invoice_items: invoice.invoice_items };
+
+    // Best-effort email notification — never blocks the submission itself.
+    ctx.waitUntil(notifySubmission(env, fullInvoice, sub));
+
+    return json({ invoice: fullInvoice });
   });
+
+async function notifySubmission(env, invoice, sub) {
+  try {
+    const pdfBytes = await generateInvoicePdf(invoice);
+    const filename = pdfFilename(invoice);
+    const amount = `$${Number(invoice.total_payable).toFixed(2)}`;
+    const html = `<p>Invoice <strong>${invoice.invoice_number}</strong> from <strong>${sub.legal_name}</strong> for <strong>${amount}</strong> has been submitted.</p><p>Period: ${invoice.period_start} to ${invoice.period_end}</p><p>The tax invoice PDF is attached.</p>`;
+
+    const recipients = [env.ADMIN_NOTIFY_EMAIL, sub.email].filter(Boolean);
+    await Promise.all(
+      recipients.map((to) =>
+        sendEmailWithPdf(env, {
+          to,
+          subject: `Invoice ${invoice.invoice_number} submitted — ${amount}`,
+          html,
+          pdfBytes,
+          filename,
+        })
+      )
+    );
+  } catch (e) {
+    console.error("notifySubmission failed:", e);
+  }
+}
