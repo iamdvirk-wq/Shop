@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Invoice</title>
+<link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+<div class="topbar">
+  <h1>Invoice</h1>
+  <a href="/portal/">Back</a>
+</div>
+<div class="page">
+  <div id="error"></div>
+  <div id="notice"></div>
+  <div id="content">Loading…</div>
+</div>
+<script src="/assets/app.js"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+const invoiceId = params.get("id");
+let me, invoice, items;
+
+const ITEM_DEFAULTS = {
+  extra_day: { label: "Extra day worked", gst: "gst_included" },
+  fuel: { label: "Fuel", gst: "no_gst" },
+  custom: { label: "", gst: "gst_included" },
+};
+
+function computeTotals(daysWorked, dailyRateInclGst, items) {
+  let taxable = Number(daysWorked || 0) * Number(dailyRateInclGst || 0);
+  let nonGst = 0;
+  for (const item of items) {
+    const amt = Number(item.amount) || 0;
+    if (item.gst_treatment === "gst_included") taxable += amt;
+    else nonGst += amt;
+  }
+  taxable = Math.round(taxable * 100) / 100;
+  const gst = Math.round((taxable / 11) * 100) / 100;
+  const subtotal = Math.round((taxable - gst) * 100) / 100;
+  nonGst = Math.round(nonGst * 100) / 100;
+  const total = Math.round((taxable + nonGst) * 100) / 100;
+  return { taxable_subtotal_excl_gst: subtotal, gst_amount: gst, non_gst_total: nonGst, total_payable: total };
+}
+
+function render() {
+  const content = document.getElementById("content");
+  const locked = invoice && !["draft", "returned", null].includes(invoice.status) && invoice.status !== undefined;
+  const isNew = !invoice;
+  const status = invoice ? invoice.status : "draft";
+
+  if (locked) {
+    renderLocked(content);
+    return;
+  }
+
+  const periodStart = invoice ? invoice.period_start : (window.__prefill?.period_start || "");
+  const periodEnd = invoice ? invoice.period_end : (window.__prefill?.period_end || "");
+  const daysWorked = invoice ? invoice.days_worked : (window.__prefill?.days_worked || "");
+
+  content.innerHTML = `
+    ${status === "returned" && invoice.admin_note ? `<div class="notice-box"><strong>Returned for correction:</strong> ${invoice.admin_note}</div>` : ""}
+    <div class="card">
+      <h3>Your rate</h3>
+      <p class="muted">$${Number(me.daily_rate_incl_gst).toFixed(2)} per day (GST included) — shown on the invoice as $${(me.daily_rate_incl_gst/1.1).toFixed(2)} + GST per day.</p>
+      <p class="muted">Depot: ${me.depot || "—"}</p>
+    </div>
+    <div class="card">
+      <h3>Work period</h3>
+      <div class="row">
+        <div>
+          <label>Start date</label>
+          <input type="date" id="period_start" value="${periodStart}" />
+        </div>
+        <div>
+          <label>End date</label>
+          <input type="date" id="period_end" value="${periodEnd}" />
+        </div>
+      </div>
+      <label>Days worked</label>
+      <input type="number" id="days_worked" step="0.5" min="0" value="${daysWorked}" />
+    </div>
+    <div class="card">
+      <h3>Extra items</h3>
+      <div id="items"></div>
+      <button class="btn secondary" type="button" id="addItem">+ Add item</button>
+    </div>
+    <div class="card">
+      <h3>Totals</h3>
+      <div id="totals"></div>
+    </div>
+    <div class="card">
+      <div class="checkbox-row">
+        <input type="checkbox" id="declaration" />
+        <label for="declaration">I declare that the information in this invoice is true and correct.</label>
+      </div>
+      <button class="btn secondary" type="button" id="saveDraft">Save draft</button>
+      <button class="btn secondary" type="button" id="previewPdf">Preview PDF</button>
+      <button class="btn" type="button" id="submitBtn">Submit invoice</button>
+      ${!isNew ? `<button class="btn danger" type="button" id="deleteDraft">Delete draft</button>` : ""}
+    </div>
+  `;
+
+  items = (invoice ? invoice.invoice_items : window.__prefillItems) || [];
+  renderItems();
+  updateTotals();
+
+  document.getElementById("addItem").addEventListener("click", () => {
+    items.push({ type: "custom", description: "", amount: "", gst_treatment: "gst_included" });
+    renderItems();
+    updateTotals();
+  });
+  document.getElementById("period_start").addEventListener("change", updateTotals);
+  document.getElementById("period_end").addEventListener("change", updateTotals);
+  document.getElementById("days_worked").addEventListener("input", updateTotals);
+  document.getElementById("saveDraft").addEventListener("click", () => save(false));
+  document.getElementById("submitBtn").addEventListener("click", () => save(true));
+  document.getElementById("previewPdf").addEventListener("click", previewPdf);
+  const del = document.getElementById("deleteDraft");
+  if (del) del.addEventListener("click", deleteDraft);
+}
+
+function renderItems() {
+  const wrap = document.getElementById("items");
+  wrap.innerHTML = "";
+  items.forEach((item, i) => {
+    const row = el(`
+      <div class="extra-item">
+        <button type="button" class="remove">Remove</button>
+        <label>Type</label>
+        <select data-i="${i}" class="itemType">
+          <option value="extra_day" ${item.type==="extra_day"?"selected":""}>Extra day</option>
+          <option value="fuel" ${item.type==="fuel"?"selected":""}>Fuel</option>
+          <option value="custom" ${(!item.type||item.type==="custom")?"selected":""}>Custom</option>
+        </select>
+        <label>Description</label>
+        <input class="itemDesc" data-i="${i}" value="${item.description || ""}" />
+        <label>Amount</label>
+        <input class="itemAmount" data-i="${i}" type="number" step="0.01" min="0" value="${item.amount ?? ""}" />
+        <label>GST</label>
+        <select class="itemGst" data-i="${i}">
+          <option value="gst_included" ${item.gst_treatment==="gst_included"?"selected":""}>GST included</option>
+          <option value="no_gst" ${item.gst_treatment==="no_gst"?"selected":""}>No GST</option>
+        </select>
+      </div>
+    `);
+    row.querySelector(".remove").addEventListener("click", () => { items.splice(i,1); renderItems(); updateTotals(); });
+    row.querySelector(".itemType").addEventListener("change", (e) => {
+      const t = e.target.value;
+      item.type = t;
+      const d = ITEM_DEFAULTS[t];
+      if (d.label) item.description = d.label;
+      item.gst_treatment = d.gst;
+      renderItems();
+      updateTotals();
+    });
+    row.querySelector(".itemDesc").addEventListener("input", (e) => { item.description = e.target.value; });
+    row.querySelector(".itemAmount").addEventListener("input", (e) => { item.amount = e.target.value; updateTotals(); });
+    row.querySelector(".itemGst").addEventListener("change", (e) => { item.gst_treatment = e.target.value; updateTotals(); });
+    wrap.appendChild(row);
+  });
+}
+
+function updateTotals() {
+  const days = Number(document.getElementById("days_worked").value || 0);
+  const totals = computeTotals(days, me.daily_rate_incl_gst, items);
+  document.getElementById("totals").innerHTML = `
+    <div class="totals-line"><span>Taxable subtotal (ex GST)</span><span>${money(totals.taxable_subtotal_excl_gst)}</span></div>
+    <div class="totals-line"><span>GST</span><span>${money(totals.gst_amount)}</span></div>
+    <div class="totals-line"><span>Non-GST items</span><span>${money(totals.non_gst_total)}</span></div>
+    <div class="totals-line total"><span>Total payable</span><span>${money(totals.total_payable)}</span></div>
+  `;
+}
+
+function currentPayload() {
+  return {
+    period_start: document.getElementById("period_start").value,
+    period_end: document.getElementById("period_end").value,
+    days_worked: Number(document.getElementById("days_worked").value || 0),
+    items: items.map((i) => ({ description: i.description, amount: Number(i.amount || 0), gst_treatment: i.gst_treatment })),
+  };
+}
+
+async function ensureSaved() {
+  const payload = currentPayload();
+  if (!payload.period_start || !payload.period_end) throw new Error("Please set the start and end dates");
+  if (invoice) {
+    const res = await api.patch(`/invoices/${invoice.id}`, payload);
+    invoice = res.invoice;
+  } else {
+    const res = await api.post("/invoices", payload);
+    invoice = res.invoice;
+  }
+  return invoice;
+}
+
+async function save(thenSubmit) {
+  const errorBox = document.getElementById("error");
+  errorBox.innerHTML = "";
+  try {
+    await ensureSaved();
+    if (!thenSubmit) {
+      window.location.href = "/portal/";
+      return;
+    }
+    if (!document.getElementById("declaration").checked) {
+      throw new Error("Please tick the declaration box before submitting");
+    }
+    await api.post(`/invoices/${invoice.id}/submit`, { declaration_accepted: true });
+    window.location.href = "/portal/";
+  } catch (err) {
+    showError(errorBox, err.message);
+  }
+}
+
+async function previewPdf() {
+  try {
+    await ensureSaved();
+    window.open(`/api/invoices/${invoice.id}/pdf`, "_blank");
+  } catch (err) {
+    showError(document.getElementById("error"), err.message);
+  }
+}
+
+async function deleteDraft() {
+  if (!confirm("Delete this draft?")) return;
+  await api.delete(`/invoices/${invoice.id}`);
+  window.location.href = "/portal/";
+}
+
+function renderLocked(content) {
+  const inv = invoice;
+  content.innerHTML = `
+    <div class="card">
+      <div class="row" style="align-items:center;">
+        <h2 style="margin:0;">${inv.invoice_number}</h2>
+        <span class="badge ${inv.status}">${statusLabel(inv.status)}</span>
+      </div>
+      <p class="muted">${inv.period_start} to ${inv.period_end}</p>
+      <p>${inv.description || ""}</p>
+      ${inv.admin_note ? `<div class="notice-box">Admin note: ${inv.admin_note}</div>` : ""}
+      <div id="totals"></div>
+      <a class="btn secondary" href="/api/invoices/${inv.id}/pdf" target="_blank">View PDF</a>
+      ${["submitted","under_review"].includes(inv.status) ? `
+        <label>Request a correction</label>
+        <textarea id="correctionNote" placeholder="What needs to be fixed?"></textarea>
+        <button class="btn" id="requestCorrection">Request correction</button>
+      ` : ""}
+    </div>
+  `;
+  document.getElementById("totals").innerHTML = `
+    <div class="totals-line"><span>Taxable subtotal (ex GST)</span><span>${money(inv.taxable_subtotal_excl_gst)}</span></div>
+    <div class="totals-line"><span>GST</span><span>${money(inv.gst_amount)}</span></div>
+    <div class="totals-line"><span>Non-GST items</span><span>${money(inv.non_gst_total)}</span></div>
+    <div class="totals-line total"><span>Total payable</span><span>${money(inv.total_payable)}</span></div>
+  `;
+  const btn = document.getElementById("requestCorrection");
+  if (btn) btn.addEventListener("click", async () => {
+    try {
+      const note = document.getElementById("correctionNote").value;
+      await api.post(`/invoices/${inv.id}/request-correction`, { note });
+      document.getElementById("notice").innerHTML = '<div class="success-box">Correction requested. The administrator has been notified.</div>';
+    } catch (err) {
+      showError(document.getElementById("error"), err.message);
+    }
+  });
+}
+
+async function copyPrevious() {
+  const { invoices } = await api.get("/invoices");
+  const prev = invoices.find((i) => i.invoice_number);
+  if (!prev) return;
+  const prevEnd = new Date(prev.period_end);
+  const newStart = new Date(prevEnd); newStart.setDate(newStart.getDate() + 1);
+  const newEnd = new Date(newStart); newEnd.setDate(newEnd.getDate() + 13);
+  window.__prefill = {
+    period_start: newStart.toISOString().slice(0,10),
+    period_end: newEnd.toISOString().slice(0,10),
+    days_worked: prev.days_worked,
+  };
+  window.__prefillItems = prev.invoice_items.map((i) => ({ description: i.description, amount: i.amount, gst_treatment: i.gst_treatment, type: "custom" }));
+  render();
+}
+
+(async () => {
+  try {
+    me = await requireRole("subcontractor");
+    if (invoiceId) {
+      const res = await api.get(`/invoices/${invoiceId}`);
+      invoice = res.invoice;
+    }
+    render();
+    if (!invoiceId) {
+      const content = document.getElementById("content");
+      const btn = el('<button class="btn ghost" type="button">Copy my previous invoice</button>');
+      btn.addEventListener("click", copyPrevious);
+      content.prepend(btn);
+    }
+  } catch (err) {
+    if (err.message !== "redirecting") showError(document.getElementById("error"), err.message);
+  }
+})();
+</script>
+</body>
+</html>

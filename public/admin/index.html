@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin Dashboard</title>
+<link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+<div class="topbar">
+  <h1>GRD Virk — Admin</h1>
+  <div>
+    <a href="/admin/subcontractors.html">Subcontractors</a>
+    &nbsp;·&nbsp;
+    <button class="link" onclick="logout()">Log out</button>
+  </div>
+</div>
+<div class="page">
+  <div id="error"></div>
+
+  <div class="card">
+    <h3>Totals for current filter</h3>
+    <div id="totals"></div>
+  </div>
+
+  <div class="card">
+    <h3>Filters</h3>
+    <div class="filters">
+      <select id="f_status">
+        <option value="">All statuses</option>
+        <option value="draft">Draft</option>
+        <option value="submitted">Submitted</option>
+        <option value="under_review">Under review</option>
+        <option value="returned">Returned</option>
+        <option value="approved">Approved</option>
+        <option value="rejected">Rejected</option>
+        <option value="paid">Paid</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <select id="f_subcontractor"><option value="">All subcontractors</option></select>
+      <input id="f_number" placeholder="Invoice number" />
+    </div>
+    <div class="filters">
+      <input id="f_from" type="date" />
+      <input id="f_to" type="date" />
+    </div>
+    <button class="btn secondary" id="applyFilters">Apply filters</button>
+    <a class="btn ghost" href="/api/admin/backup" target="_blank">Download full backup</a>
+  </div>
+
+  <div id="list"></div>
+</div>
+<script src="/assets/app.js"></script>
+<script>
+let subcontractors = [];
+
+async function loadSubcontractors() {
+  const { subcontractors: subs } = await api.get("/admin/subcontractors");
+  subcontractors = subs;
+  const sel = document.getElementById("f_subcontractor");
+  for (const s of subs) {
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = s.legal_name;
+    sel.appendChild(opt);
+  }
+}
+
+function buildQuery() {
+  const q = new URLSearchParams();
+  const status = document.getElementById("f_status").value;
+  const sub = document.getElementById("f_subcontractor").value;
+  const number = document.getElementById("f_number").value;
+  const from = document.getElementById("f_from").value;
+  const to = document.getElementById("f_to").value;
+  if (status) q.set("status", status);
+  if (sub) q.set("subcontractor_id", sub);
+  if (number) q.set("invoice_number", number);
+  if (from) q.set("period_from", from);
+  if (to) q.set("period_to", to);
+  return q.toString();
+}
+
+async function loadInvoices() {
+  const errorBox = document.getElementById("error");
+  errorBox.innerHTML = "";
+  try {
+    const { invoices, totals } = await api.get(`/admin/invoices?${buildQuery()}`);
+    document.getElementById("totals").innerHTML = `
+      <div class="totals-line"><span>Taxable subtotal (ex GST)</span><span>${money(totals.taxable_subtotal_excl_gst)}</span></div>
+      <div class="totals-line"><span>GST</span><span>${money(totals.gst_amount)}</span></div>
+      <div class="totals-line"><span>Non-GST items</span><span>${money(totals.non_gst_total)}</span></div>
+      <div class="totals-line total"><span>Total payable</span><span>${money(totals.total_payable)}</span></div>
+    `;
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+    if (invoices.length === 0) {
+      list.innerHTML = '<p class="muted center">No invoices match this filter.</p>';
+      return;
+    }
+    for (const inv of invoices) {
+      const subName = inv.subcontractors ? (inv.subcontractors.business_name || inv.subcontractors.legal_name) : "";
+      const item = el(`
+        <div class="invoice-item">
+          <div class="top">
+            <strong>${inv.invoice_number || "Draft"}</strong>
+            <span class="badge ${inv.status}">${statusLabel(inv.status)}</span>
+          </div>
+          <div class="amount">${money(inv.total_payable)}</div>
+          <div class="meta">${subName} · ${inv.period_start} to ${inv.period_end}</div>
+        </div>
+      `);
+      item.addEventListener("click", () => window.location.href = `/admin/invoice.html?id=${inv.id}`);
+      list.appendChild(item);
+    }
+  } catch (err) {
+    showError(errorBox, err.message);
+  }
+}
+
+document.getElementById("applyFilters").addEventListener("click", loadInvoices);
+
+(async () => {
+  try {
+    await requireRole("admin");
+    await loadSubcontractors();
+    await loadInvoices();
+  } catch (err) {
+    if (err.message !== "redirecting") showError(document.getElementById("error"), err.message);
+  }
+})();
+</script>
+</body>
+</html>

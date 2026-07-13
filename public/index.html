@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GRD Virk — Invoices</title>
+<link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+<div class="page" style="padding-top:60px;">
+  <div class="card">
+    <h2>GRD Virk Pty Ltd — Invoice Login</h2>
+    <div id="error"></div>
+    <form id="loginForm">
+      <label>Username</label>
+      <input id="username" autocomplete="username" required />
+      <label>Password</label>
+      <input id="password" type="password" autocomplete="current-password" required />
+      <button class="btn" type="submit">Log in</button>
+    </form>
+  </div>
+</div>
+<script src="/assets/app.js"></script>
+<script>
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errorBox = document.getElementById("error");
+  errorBox.innerHTML = "";
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
+  try {
+    const result = await api.post("/login", { username, password });
+    window.location.href = result.role === "admin" ? "/admin/" : "/portal/";
+  } catch (err) {
+    showError(errorBox, err.message);
+  }
+});
+
+// If already logged in, skip straight to the right dashboard.
+(async () => {
+  try {
+    const me = await api.get("/me");
+    if (me.role === "admin") window.location.href = "/admin/";
+    if (me.role === "subcontractor") window.location.href = "/portal/";
+  } catch (e) { /* not logged in */ }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>My Details</title>
+<link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+<div class="topbar">
+  <h1>My Details</h1>
+  <a href="/portal/">Back</a>
+</div>
+<div class="page">
+  <div id="error"></div>
+  <div id="notice"></div>
+  <div id="content">Loading…</div>
+</div>
+<script src="/assets/app.js"></script>
+<script>
+let me;
+
+function render() {
+  const content = document.getElementById("content");
+  const pendingBox = me.pending_requested_at ? `
+    <div class="notice-box">
+      A change to your legal/business name or ABN is waiting for admin approval:
+      ${me.pending_legal_name ? `<br>Legal name → ${me.pending_legal_name}` : ""}
+      ${me.pending_business_name ? `<br>Business name → ${me.pending_business_name}` : ""}
+      ${me.pending_abn ? `<br>ABN → ${me.pending_abn}` : ""}
+    </div>
+  ` : "";
+
+  content.innerHTML = `
+    ${pendingBox}
+    <div class="card">
+      <h3>Contact details</h3>
+      <label>Address</label>
+      <input id="address" value="${me.address || ""}" />
+      <label>Email</label>
+      <input id="email" value="${me.email || ""}" />
+      <label>Phone</label>
+      <input id="phone" value="${me.phone || ""}" />
+      <button class="btn" id="saveContact">Save contact details</button>
+    </div>
+    <div class="card">
+      <h3>Bank details</h3>
+      <label>Account name</label>
+      <input id="bank_account_name" value="${me.bank_account_name || ""}" />
+      <label>BSB</label>
+      <input id="bank_bsb" value="${me.bank_bsb || ""}" />
+      <label>Account number</label>
+      <input id="bank_account_number" value="${me.bank_account_number || ""}" />
+      <p class="muted">Changing your bank details will flag them for the administrator to double-check.</p>
+      <button class="btn" id="saveBank">Save bank details</button>
+    </div>
+    <div class="card">
+      <h3>Legal name, business name, ABN</h3>
+      <p class="muted">Current: ${me.legal_name} ${me.business_name ? `(${me.business_name})` : ""}</p>
+      <label>Request new legal name</label>
+      <input id="requested_legal_name" placeholder="Leave blank to keep current" />
+      <label>Request new business name</label>
+      <input id="requested_business_name" placeholder="Leave blank to keep current" />
+      <label>Request new ABN</label>
+      <input id="requested_abn" placeholder="Leave blank to keep current" />
+      <p class="muted">These changes need administrator approval before they take effect.</p>
+      <button class="btn secondary" id="requestChange">Request change</button>
+    </div>
+  `;
+
+  document.getElementById("saveContact").addEventListener("click", () => saveFields(["address","email","phone"]));
+  document.getElementById("saveBank").addEventListener("click", () => saveFields(["bank_account_name","bank_bsb","bank_account_number"]));
+  document.getElementById("requestChange").addEventListener("click", requestChange);
+}
+
+async function saveFields(fields) {
+  const errorBox = document.getElementById("error");
+  errorBox.innerHTML = "";
+  const payload = {};
+  for (const f of fields) payload[f] = document.getElementById(f).value;
+  try {
+    await api.patch("/profile", payload);
+    document.getElementById("notice").innerHTML = '<div class="success-box">Saved.</div>';
+  } catch (err) {
+    showError(errorBox, err.message);
+  }
+}
+
+async function requestChange() {
+  const errorBox = document.getElementById("error");
+  errorBox.innerHTML = "";
+  const payload = {
+    requested_legal_name: document.getElementById("requested_legal_name").value || undefined,
+    requested_business_name: document.getElementById("requested_business_name").value || undefined,
+    requested_abn: document.getElementById("requested_abn").value || undefined,
+  };
+  if (!payload.requested_legal_name && !payload.requested_business_name && !payload.requested_abn) return;
+  try {
+    await api.patch("/profile", payload);
+    document.getElementById("notice").innerHTML = '<div class="success-box">Change requested — waiting for admin approval.</div>';
+    me = (await api.get("/me"));
+    render();
+  } catch (err) {
+    showError(errorBox, err.message);
+  }
+}
+
+(async () => {
+  try {
+    me = await requireRole("subcontractor");
+    render();
+  } catch (err) {
+    if (err.message !== "redirecting") showError(document.getElementById("error"), err.message);
+  }
+})();
+</script>
+</body>
+</html>

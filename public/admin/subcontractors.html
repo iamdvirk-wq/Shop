@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Subcontractors</title>
+<link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+<div class="topbar">
+  <h1>Subcontractors</h1>
+  <a href="/admin/">Back to dashboard</a>
+</div>
+<div class="page">
+  <div id="error"></div>
+  <div id="notice"></div>
+
+  <button class="btn" id="toggleAdd">+ Add subcontractor</button>
+  <div class="card" id="addForm" style="display:none;">
+    <h3>New subcontractor</h3>
+    ${""}
+    <div id="addFields"></div>
+    <button class="btn" id="createSub">Create login</button>
+  </div>
+
+  <div id="list"></div>
+</div>
+<script src="/assets/app.js"></script>
+<script>
+const FIELD_LAYOUT = [
+  ["username", "Username"],
+  ["password", "Password"],
+  ["legal_name", "Legal name"],
+  ["business_name", "Business name"],
+  ["abn", "ABN"],
+  ["address", "Address"],
+  ["email", "Email"],
+  ["phone", "Phone"],
+  ["bank_account_name", "Bank account name"],
+  ["bank_bsb", "BSB"],
+  ["bank_account_number", "Bank account number"],
+  ["daily_rate_incl_gst", "Daily rate (GST included)"],
+  ["depot", "Depot"],
+  ["invoice_prefix", "Invoice number prefix (e.g. JOHN)"],
+];
+
+function fieldsHtml(prefix, values = {}) {
+  return FIELD_LAYOUT.map(([key, label]) => `
+    <label>${label}</label>
+    <input id="${prefix}_${key}" value="${values[key] ?? ""}" ${key === "daily_rate_incl_gst" ? 'type="number" step="0.01"' : ""} />
+  `).join("");
+}
+
+document.getElementById("addFields").innerHTML = fieldsHtml("add");
+
+document.getElementById("toggleAdd").addEventListener("click", () => {
+  const form = document.getElementById("addForm");
+  form.style.display = form.style.display === "none" ? "block" : "none";
+});
+
+document.getElementById("createSub").addEventListener("click", async () => {
+  const errorBox = document.getElementById("error");
+  errorBox.innerHTML = "";
+  const payload = {};
+  for (const [key] of FIELD_LAYOUT) payload[key] = document.getElementById(`add_${key}`).value;
+  try {
+    await api.post("/admin/subcontractors", payload);
+    document.getElementById("addForm").style.display = "none";
+    loadList();
+  } catch (err) {
+    showError(errorBox, err.message);
+  }
+});
+
+async function loadList() {
+  const { subcontractors } = await api.get("/admin/subcontractors");
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+  for (const sub of subcontractors) {
+    const card = el(`<div class="card"></div>`);
+    card.innerHTML = `
+      <div class="row" style="align-items:center;">
+        <h2 style="margin:0;">${sub.legal_name} ${sub.business_name ? `(${sub.business_name})` : ""}</h2>
+        <span class="badge ${sub.status === 'active' ? 'approved' : 'cancelled'}">${sub.status}</span>
+      </div>
+      <p class="muted">Username: <strong>${sub.username}</strong> · Password: <strong>${sub.password}</strong></p>
+      <p class="muted">ABN: ${sub.abn} · Depot: ${sub.depot || "—"} · Rate: ${money(sub.daily_rate_incl_gst)}/day incl GST · Prefix: ${sub.invoice_prefix}</p>
+      ${sub.bank_flagged ? `<div class="notice-box">Bank details were changed by the subcontractor on ${new Date(sub.bank_flagged_at).toLocaleDateString()}. <button class="btn small" data-action="clearBank" data-id="${sub.id}">Mark reviewed</button></div>` : ""}
+      ${sub.pending_requested_at ? `
+        <div class="notice-box">
+          Requested change: ${sub.pending_legal_name ? `Legal name → ${sub.pending_legal_name}. ` : ""}${sub.pending_business_name ? `Business name → ${sub.pending_business_name}. ` : ""}${sub.pending_abn ? `ABN → ${sub.pending_abn}.` : ""}
+          <br><button class="btn small" data-action="approvePending" data-id="${sub.id}">Approve</button>
+          <button class="btn small ghost" data-action="rejectPending" data-id="${sub.id}">Reject</button>
+        </div>
+      ` : ""}
+      <button class="btn small secondary" data-action="toggleEdit" data-id="${sub.id}">Edit</button>
+      <button class="btn small ${sub.status === 'active' ? 'danger' : ''}" data-action="toggleStatus" data-id="${sub.id}" data-current="${sub.status}">
+        ${sub.status === 'active' ? 'Disable account' : 'Re-enable account'}
+      </button>
+      <div id="edit_${sub.id}" style="display:none; margin-top:12px;">
+        ${fieldsHtml('edit_' + sub.id, sub)}
+        <button class="btn" data-action="saveEdit" data-id="${sub.id}">Save changes</button>
+      </div>
+    `;
+    list.appendChild(card);
+  }
+
+  list.addEventListener("click", handleListClick);
+}
+
+async function handleListClick(e) {
+  const btn = e.target.closest("button[data-action]");
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const id = btn.dataset.id;
+  const errorBox = document.getElementById("error");
+  errorBox.innerHTML = "";
+
+  try {
+    if (action === "toggleEdit") {
+      const panel = document.getElementById(`edit_${id}`);
+      panel.style.display = panel.style.display === "none" ? "block" : "none";
+    } else if (action === "saveEdit") {
+      const payload = {};
+      for (const [key] of FIELD_LAYOUT) {
+        const value = document.getElementById(`edit_${id}_${key}`).value;
+        if (key === "password" && !value) continue; // blank = keep existing password
+        payload[key] = value;
+      }
+      await api.patch(`/admin/subcontractors/${id}`, payload);
+      loadList();
+    } else if (action === "toggleStatus") {
+      const next = btn.dataset.current === "active" ? "disabled" : "active";
+      await api.patch(`/admin/subcontractors/${id}`, { status: next });
+      loadList();
+    } else if (action === "clearBank") {
+      await api.patch(`/admin/subcontractors/${id}`, { clear_bank_flag: true });
+      loadList();
+    } else if (action === "approvePending") {
+      await api.patch(`/admin/subcontractors/${id}`, { approve_pending: true });
+      loadList();
+    } else if (action === "rejectPending") {
+      await api.patch(`/admin/subcontractors/${id}`, { reject_pending: true });
+      loadList();
+    }
+  } catch (err) {
+    showError(errorBox, err.message);
+  }
+}
+
+(async () => {
+  try {
+    await requireRole("admin");
+    await loadList();
+  } catch (err) {
+    if (err.message !== "redirecting") showError(document.getElementById("error"), err.message);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>My Invoices</title>
+<link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+<div class="topbar">
+  <h1 id="who">My Invoices</h1>
+  <div>
+    <a href="/portal/profile.html">My details</a>
+    &nbsp;·&nbsp;
+    <button class="link" onclick="logout()">Log out</button>
+  </div>
+</div>
+<div class="page">
+  <div id="error"></div>
+  <a class="btn" href="/portal/new.html">+ New invoice</a>
+  <div id="list" style="margin-top:16px;"></div>
+</div>
+<script src="/assets/app.js"></script>
+<script>
+(async () => {
+  const me = await requireRole("subcontractor");
+  document.getElementById("who").textContent = me.legal_name || "My Invoices";
+
+  const list = document.getElementById("list");
+  try {
+    const { invoices } = await api.get("/invoices");
+    if (invoices.length === 0) {
+      list.innerHTML = '<p class="muted center">No invoices yet. Tap "New invoice" to get started.</p>';
+      return;
+    }
+    list.innerHTML = "";
+    for (const inv of invoices) {
+      const label = inv.invoice_number || "Draft";
+      const item = el(`
+        <div class="invoice-item">
+          <div class="top">
+            <strong>${label}</strong>
+            <span class="badge ${inv.status}">${statusLabel(inv.status)}</span>
+          </div>
+          <div class="amount">${money(inv.total_payable)}</div>
+          <div class="meta">${inv.period_start} to ${inv.period_end}</div>
+          ${inv.status === "returned" && inv.admin_note ? `<div class="meta" style="color:#b91c1c;">Admin note: ${inv.admin_note}</div>` : ""}
+        </div>
+      `);
+      item.addEventListener("click", () => {
+        window.location.href = `/portal/new.html?id=${inv.id}`;
+      });
+      list.appendChild(item);
+    }
+  } catch (err) {
+    showError(document.getElementById("error"), err.message);
+  }
+})();
+</script>
+</body>
+</html>
