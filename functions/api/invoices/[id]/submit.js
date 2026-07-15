@@ -49,7 +49,11 @@ export const onRequestPost = (ctx) =>
     const now = new Date().toISOString();
     const approveToken = crypto.randomUUID();
 
-    if (invoice.status === "returned") {
+    // invoice_number already being set means this is a resubmission (the
+    // subcontractor may have already edited it back from "returned" to
+    // "draft" via the edit endpoint before getting here) — keep the
+    // revision trail either way.
+    if (invoice.invoice_number) {
       await dbInsert(env, "invoice_revisions", {
         invoice_id: invoice.id,
         snapshot: invoice,
