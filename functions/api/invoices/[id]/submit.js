@@ -97,16 +97,22 @@ async function notifySubmission(env, invoice, sub, origin) {
     const jobs = [];
 
     if (env.ADMIN_NOTIFY_EMAIL) {
-      const approveUrl = `${origin}/api/email-approve/${invoice.id}?token=${invoice.approve_token}`;
+      const actionUrl = (action) => `${origin}/api/email-action/${invoice.id}?token=${invoice.approve_token}&action=${action}`;
       const dashboardUrl = `${origin}/admin/invoice.html?id=${invoice.id}`;
       const adminHtml = `
         ${summary}
         <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0;">
+          <tr><td style="padding-bottom:10px;">
+            <a href="${actionUrl("approve")}" style="background:#c99a3f;color:#0b1730;font-weight:700;font-size:15px;text-decoration:none;padding:13px 26px;border-radius:8px;display:inline-block;">Approve this invoice</a>
+          </td></tr>
+          <tr><td style="padding-bottom:10px;">
+            <a href="${actionUrl("return")}" style="background:#ffffff;color:#0f2043;border:1.5px solid #0f2043;font-weight:600;font-size:14px;text-decoration:none;padding:11px 24px;border-radius:8px;display:inline-block;">Return for correction</a>
+          </td></tr>
           <tr><td>
-            <a href="${approveUrl}" style="background:#c99a3f;color:#0b1730;font-weight:700;font-size:15px;text-decoration:none;padding:13px 26px;border-radius:8px;display:inline-block;">Approve this invoice</a>
+            <a href="${actionUrl("reject")}" style="background:#ffffff;color:#c0392b;border:1.5px solid #c0392b;font-weight:600;font-size:14px;text-decoration:none;padding:11px 24px;border-radius:8px;display:inline-block;">Reject</a>
           </td></tr>
         </table>
-        <p style="font-size:13px;color:#667085;">This link approves the invoice immediately and can only be used once. To reject, return for correction, or view full details, <a href="${dashboardUrl}">open it in the dashboard</a> instead.</p>
+        <p style="font-size:13px;color:#667085;">Each button asks you to confirm before it takes effect, and can only be used once. To edit the invoice first, <a href="${dashboardUrl}">open it in the dashboard</a> instead.</p>
       `;
       jobs.push(
         sendEmailWithPdf(env, { to: env.ADMIN_NOTIFY_EMAIL, subject, html: adminHtml, pdfBytes, filename })

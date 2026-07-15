@@ -1,6 +1,7 @@
 import { requireAdmin } from "../../../../_lib/session.js";
 import { json, errorResponse, withHandler } from "../../../../_lib/util.js";
 import { loadInvoiceWithItems, setInvoiceStatus } from "../../../../_lib/invoices.js";
+import { notifyStatusChange } from "../../../../_lib/notify.js";
 
 // Returns an invoice to the subcontractor for correction. It stays locked
 // to the same invoice number — the subcontractor edits and resubmits it.
@@ -18,5 +19,6 @@ export const onRequestPost = (ctx) =>
       admin_note: body.note || invoice.admin_note,
       correction_requested: false,
     });
+    ctx.waitUntil(notifyStatusChange(env, updated, "returned", body.note, new URL(request.url).origin));
     return json({ invoice: updated });
   });

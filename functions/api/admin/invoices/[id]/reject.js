@@ -1,6 +1,7 @@
 import { requireAdmin } from "../../../../_lib/session.js";
 import { json, errorResponse, withHandler } from "../../../../_lib/util.js";
 import { loadInvoiceWithItems, setInvoiceStatus } from "../../../../_lib/invoices.js";
+import { notifyStatusChange } from "../../../../_lib/notify.js";
 
 export const onRequestPost = (ctx) =>
   withHandler(async () => {
@@ -16,5 +17,6 @@ export const onRequestPost = (ctx) =>
       rejected_at: new Date().toISOString(),
       admin_note: body.note || invoice.admin_note,
     });
+    ctx.waitUntil(notifyStatusChange(env, updated, "rejected", body.note, new URL(request.url).origin));
     return json({ invoice: updated });
   });
