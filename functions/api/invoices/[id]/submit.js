@@ -47,6 +47,7 @@ export const onRequestPost = (ctx) =>
     }
 
     const now = new Date().toISOString();
+    const approveToken = crypto.randomUUID();
 
     if (invoice.status === "returned") {
       await dbInsert(env, "invoice_revisions", {
@@ -72,36 +73,52 @@ export const onRequestPost = (ctx) =>
       sub_bank_account_name: sub.bank_account_name,
       sub_bank_bsb: sub.bank_bsb,
       sub_bank_account_number: sub.bank_account_number,
+      approve_token: approveToken,
       updated_at: now,
     });
 
     const fullInvoice = { ...updated[0], invoice_items: invoice.invoice_items };
+    const origin = new URL(request.url).origin;
 
     // Best-effort email notification — never blocks the submission itself.
-    ctx.waitUntil(notifySubmission(env, fullInvoice, sub));
+    ctx.waitUntil(notifySubmission(env, fullInvoice, sub, origin));
 
     return json({ invoice: fullInvoice });
   });
 
-async function notifySubmission(env, invoice, sub) {
+async function notifySubmission(env, invoice, sub, origin) {
   try {
     const pdfBytes = await generateInvoicePdf(invoice);
     const filename = pdfFilename(invoice);
     const amount = `$${Number(invoice.total_payable).toFixed(2)}`;
-    const html = `<p>Invoice <strong>${invoice.invoice_number}</strong> from <strong>${sub.legal_name}</strong> for <strong>${amount}</strong> has been submitted.</p><p>Period: ${invoice.period_start} to ${invoice.period_end}</p><p>The tax invoice PDF is attached.</p>`;
+    const summary = `<p>Invoice <strong>${invoice.invoice_number}</strong> from <strong>${sub.legal_name}</strong> for <strong>${amount}</strong> has been submitted.</p><p>Period: ${invoice.period_start} to ${invoice.period_end}</p><p>The tax invoice PDF is attached.</p>`;
+    const subject = `Invoice ${invoice.invoice_number} submitted — ${amount}`;
 
-    const recipients = [env.ADMIN_NOTIFY_EMAIL, sub.email].filter(Boolean);
-    await Promise.all(
-      recipients.map((to) =>
-        sendEmailWithPdf(env, {
-          to,
-          subject: `Invoice ${invoice.invoice_number} submitted — ${amount}`,
-          html,
-          pdfBytes,
-          filename,
-        })
-      )
-    );
+    const jobs = [];
+
+    if (env.ADMIN_NOTIFY_EMAIL) {
+      const approveUrl = `${origin}/api/email-approve/${invoice.id}?token=${invoice.approve_token}`;
+      const dashboardUrl = `${origin}/admin/invoice.html?id=${invoice.id}`;
+      const adminHtml = `
+        ${summary}
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0;">
+          <tr><td>
+            <a href="${approveUrl}" style="background:#c99a3f;color:#0b1730;font-weight:700;font-size:15px;text-decoration:none;padding:13px 26px;border-radius:8px;display:inline-block;">Approve this invoice</a>
+          </td></tr>
+        </table>
+        <p style="font-size:13px;color:#667085;">This link approves the invoice immediately and can only be used once. To reject, return for correction, or view full details, <a href="${dashboardUrl}">open it in the dashboard</a> instead.</p>
+      `;
+      jobs.push(
+        sendEmailWithPdf(env, { to: env.ADMIN_NOTIFY_EMAIL, subject, html: adminHtml, pdfBytes, filename })
+      );
+    }
+
+    if (sub.email) {
+      const subHtml = `${summary}<p>Thanks — we'll let you know once it's been reviewed.</p>`;
+      jobs.push(sendEmailWithPdf(env, { to: sub.email, subject, html: subHtml, pdfBytes, filename }));
+    }
+
+    await Promise.all(jobs);
   } catch (e) {
     console.error("notifySubmission failed:", e);
   }
