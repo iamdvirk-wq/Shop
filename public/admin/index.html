@@ -6,14 +6,17 @@
 <title>Admin Dashboard — GRD Virk Pty Ltd</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/assets/style.css" />
 </head>
 <body>
 <div class="topbar">
-  <div class="titles">
+  <div class="titles-group">
+    <div class="brand-mark">GV</div>
+    <div class="titles">
     <span class="brand">GRD Virk Pty Ltd</span>
     <h1>Admin Dashboard</h1>
+  </div>
   </div>
   <div class="topbar-links">
     <a href="/admin/subcontractors.html">Subcontractors</a>
@@ -92,15 +95,29 @@ async function loadInvoices() {
   try {
     const { invoices, totals } = await api.get(`/admin/invoices?${buildQuery()}`);
     document.getElementById("totals").innerHTML = `
-      <div class="totals-line"><span>Taxable subtotal (ex GST)</span><span>${money(totals.taxable_subtotal_excl_gst)}</span></div>
-      <div class="totals-line"><span>GST</span><span>${money(totals.gst_amount)}</span></div>
-      <div class="totals-line"><span>Non-GST items</span><span>${money(totals.non_gst_total)}</span></div>
-      <div class="totals-line total"><span>Total payable</span><span>${money(totals.total_payable)}</span></div>
+      <div class="stat-grid">
+        <div class="stat-tile">
+          <div class="stat-label">Subtotal (ex GST)</div>
+          <div class="stat-value">${money(totals.taxable_subtotal_excl_gst)}</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-label">GST</div>
+          <div class="stat-value">${money(totals.gst_amount)}</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-label">Non-GST items</div>
+          <div class="stat-value">${money(totals.non_gst_total)}</div>
+        </div>
+        <div class="stat-tile highlight">
+          <div class="stat-label">Total payable</div>
+          <div class="stat-value">${money(totals.total_payable)}</div>
+        </div>
+      </div>
     `;
     const list = document.getElementById("list");
     list.innerHTML = "";
     if (invoices.length === 0) {
-      list.innerHTML = '<p class="muted center">No invoices match this filter.</p>';
+      list.innerHTML = '<div class="empty-state"><div class="glyph">📄</div>No invoices match this filter.</div>';
       return;
     }
     for (const inv of invoices) {

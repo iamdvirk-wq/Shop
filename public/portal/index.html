@@ -6,14 +6,17 @@
 <title>My Invoices — GRD Virk Pty Ltd</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/assets/style.css" />
 </head>
 <body>
 <div class="topbar">
-  <div class="titles">
+  <div class="titles-group">
+    <div class="brand-mark">GV</div>
+    <div class="titles">
     <span class="brand">GRD Virk Pty Ltd</span>
     <h1 id="who">My Invoices</h1>
+  </div>
   </div>
   <div class="topbar-links">
     <a href="/portal/profile.html">My details</a>
@@ -35,7 +38,7 @@
   try {
     const { invoices } = await api.get("/invoices");
     if (invoices.length === 0) {
-      list.innerHTML = '<p class="muted center">No invoices yet. Tap "New invoice" to get started.</p>';
+      list.innerHTML = '<div class="empty-state"><div class="glyph">🧾</div>No invoices yet. Tap "New invoice" to get started.</div>';
       return;
     }
     list.innerHTML = "";
