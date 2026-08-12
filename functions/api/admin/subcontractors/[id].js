@@ -22,7 +22,7 @@ export const onRequestGet = (ctx) =>
 const DIRECT_FIELDS = [
   "username", "legal_name", "business_name", "abn", "address", "email", "phone",
   "bank_account_name", "bank_bsb", "bank_account_number",
-  "daily_rate_incl_gst", "depot", "invoice_prefix", "status",
+  "daily_rate_incl_gst", "depot", "invoice_prefix", "status", "default_vehicle_id",
 ];
 
 export const onRequestPatch = (ctx) =>

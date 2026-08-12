@@ -1,0 +1,33 @@
+name: Weekly Vehicle Check Report
+
+# Fires every Monday at 5:00pm Brisbane time (Queensland has no daylight
+# saving, so a fixed UTC offset is always correct: 07:00 UTC = 17:00 AEST).
+# Scheduled triggers only run using the workflow file on the repository's
+# default branch — this feature needs to be merged there before the
+# schedule takes effect. Until then, use the manual "Run workflow" button
+# (workflow_dispatch, below) to test it from this branch.
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      site_url:
+        description: "Override the site URL to call (optional, for testing a preview deployment)"
+        required: false
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the weekly report endpoint
+        run: |
+          URL="${{ github.event.inputs.site_url }}"
+          if [ -z "$URL" ]; then
+            URL="${{ secrets.VEHICLE_REPORT_URL }}"
+          fi
+          if [ -z "$URL" ]; then
+            echo "No site URL configured — set the VEHICLE_REPORT_URL repository secret." >&2
+            exit 1
+          fi
+          curl -sS -f -X POST "${URL%/}/api/admin/vehicle-checks/weekly-report" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"

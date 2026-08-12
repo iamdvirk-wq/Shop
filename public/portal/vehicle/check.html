@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vehicle Check — GRD Virk Pty Ltd</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+<div class="topbar">
+  <div class="titles-group">
+    <div class="brand-mark">GV</div>
+    <div class="titles">
+    <span class="brand">GRD Virk Pty Ltd</span>
+    <h1 id="pageTitle">Vehicle Check</h1>
+  </div>
+  </div>
+  <div class="topbar-links">
+    <a href="/portal/vehicle/">Back</a>
+  </div>
+</div>
+<div class="page">
+  <div id="error"></div>
+  <div id="notice"></div>
+  <div id="content">Loading…</div>
+</div>
+<script src="/assets/app.js"></script>
+<script src="/assets/photo.js"></script>
+<script>
+const CHECKLIST_ITEMS = [
+  { key: "tyres", label: "Tyres — tread, pressure, cuts/damage, obvious uneven wear" },
+  { key: "wheels", label: "Wheels — no visible damage or loose/missing wheel nuts" },
+  { key: "headlights", label: "Headlights — low/high beam working" },
+  { key: "indicators", label: "Indicators & hazards — all working" },
+  { key: "brake_lights", label: "Brake/rear lights — working" },
+  { key: "windscreen", label: "Windscreen — no significant cracks/damage" },
+  { key: "wipers", label: "Wipers & washers — working and washer fluid available" },
+  { key: "mirrors", label: "Mirrors — secure, clean and undamaged" },
+  { key: "brakes", label: "Brakes — no unusual noise, vibration or poor braking" },
+  { key: "steering", label: "Steering — no unusual looseness/noises" },
+  { key: "seatbelts", label: "Seatbelts — working and undamaged" },
+  { key: "reversing_camera", label: "Reversing camera — working and clear" },
+  { key: "horn", label: "Horn — working" },
+  { key: "warning_lights", label: "Warning lights — no unexplained dashboard warning lights" },
+  { key: "oil_coolant", label: "Oil/coolant — no warning/obvious low level or leaks" },
+  { key: "fluid_leaks", label: "Fluid leaks — check underneath vehicle" },
+  { key: "body", label: "Body — new dents/damage recorded" },
+  { key: "doors", label: "Doors — driver, passenger, side and rear doors operate correctly" },
+  { key: "cargo_area", label: "Cargo area — clean, safe and no loose equipment" },
+  { key: "registration_plate", label: "Registration plate — secure and readable" },
+  { key: "cleanliness", label: "General cleanliness — cabin and cargo area reasonably clean" },
+];
+
+const vehicleId = new URLSearchParams(window.location.search).get("vehicle_id");
+let vehicle = null;
+let odoState = { blob: null, suggested: null, capturedLive: false, takenAt: null, fileModifiedAt: null };
+const answers = {}; // key -> { result, note, photoFile }
+
+function render() {
+  const content = document.getElementById("content");
+  content.innerHTML = `
+    <div class="card">
+      <h3>${vehicle.rego}${vehicle.nickname ? ` — ${vehicle.nickname}` : ""}</h3>
+      <p class="muted">${vehicle.depot || ""}</p>
+    </div>
+
+    <div class="card">
+      <h3>Odometer photo</h3>
+      <p class="muted">Take a fresh photo of the odometer now.</p>
+      <input type="file" accept="image/*" capture="environment" id="odoFile" />
+      <div id="odoPreview" style="margin-top:10px;"></div>
+      <label>Odometer reading (km)</label>
+      <input type="number" step="0.1" min="0" id="odoReading" placeholder="Enter or confirm the reading" />
+      <div id="odoMeta" class="muted" style="margin-top:6px;"></div>
+    </div>
+
+    <div class="card">
+      <h3>Safety checklist</h3>
+      <div id="checklist"></div>
+    </div>
+
+    <div class="card">
+      <div class="checkbox-row">
+        <input type="checkbox" id="declaration" />
+        <label for="declaration">I declare that this check was carried out accurately and honestly.</label>
+      </div>
+      <button class="btn" id="submitBtn">Submit vehicle check</button>
+    </div>
+  `;
+
+  document.getElementById("odoFile").addEventListener("change", handleOdoFile);
+  renderChecklist();
+  document.getElementById("submitBtn").addEventListener("click", submit);
+}
+
+function renderChecklist() {
+  const wrap = document.getElementById("checklist");
+  wrap.innerHTML = "";
+  for (const item of CHECKLIST_ITEMS) {
+    if (!answers[item.key]) answers[item.key] = { result: "pass", note: "", photoFile: null };
+    const a = answers[item.key];
+    const row = el(`
+      <div class="extra-item">
+        <label style="margin-top:0;">${item.label}</label>
+        <div class="row">
+          <button type="button" class="btn small ${a.result === "pass" ? "" : "ghost"}" data-key="${item.key}" data-result="pass" style="${a.result === "pass" ? "" : "background:#fff;color:#667085;border:1px solid #e3e6ee;"}">Pass</button>
+          <button type="button" class="btn small danger ${a.result === "fail" ? "" : "ghost"}" data-key="${item.key}" data-result="fail" style="${a.result === "fail" ? "" : "background:#fff;color:#c0392b;border:1px solid #c0392b;"}">Fail</button>
+        </div>
+        ${a.result === "fail" ? `
+          <label>What's wrong?</label>
+          <textarea class="itemNote" data-key="${item.key}" placeholder="Describe the issue">${a.note}</textarea>
+          <label>Photo of the issue (optional)</label>
+          <input type="file" accept="image/*" capture="environment" class="itemPhoto" data-key="${item.key}" />
+        ` : ""}
+      </div>
+    `);
+    row.querySelectorAll("button[data-result]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        answers[item.key].result = btn.dataset.result;
+        renderChecklist();
+      });
+    });
+    const noteEl = row.querySelector(".itemNote");
+    if (noteEl) noteEl.addEventListener("input", (e) => { answers[item.key].note = e.target.value; });
+    const photoEl = row.querySelector(".itemPhoto");
+    if (photoEl) photoEl.addEventListener("change", (e) => { answers[item.key].photoFile = e.target.files[0] || null; });
+    wrap.appendChild(row);
+  }
+}
+
+async function handleOdoFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const errorBox = document.getElementById("error");
+  errorBox.innerHTML = "";
+  const preview = document.getElementById("odoPreview");
+  const metaBox = document.getElementById("odoMeta");
+  preview.innerHTML = '<p class="muted">Processing photo…</p>';
+
+  try {
+    const blob = await compressImage(file);
+    odoState.blob = blob;
+    odoState.fileModifiedAt = file.lastModified ? new Date(file.lastModified).toISOString() : null;
+
+    // Heuristic: if the file's own timestamp is very recent, treat it as a
+    // fresh capture. Older = possibly picked from the gallery.
+    const ageMs = Date.now() - (file.lastModified || 0);
+    odoState.capturedLive = file.lastModified ? ageMs < 5 * 60 * 1000 : false;
+
+    const exifDate = await readExifDate(file);
+    odoState.takenAt = exifDate ? exifDate.toISOString() : odoState.fileModifiedAt;
+
+    const url = URL.createObjectURL(blob);
+    preview.innerHTML = `<img src="${url}" style="max-width:100%;border-radius:10px;" />`;
+
+    let freshnessNote = "";
+    if (!odoState.capturedLive) {
+      freshnessNote = `<div class="notice-box">⚠️ This photo doesn't look like it was just taken (${exifDate ? "taken " + exifDate.toLocaleString() : "older file"}). That's OK, just make sure the reading below is accurate.</div>`;
+    }
+    metaBox.innerHTML = freshnessNote;
+
+    // Ask the AI for a best-guess reading.
+    const formData = new FormData();
+    formData.append("photo", blob, "odo.jpg");
+    const res = await fetch("/api/vehicle-checks/read-odo", { method: "POST", credentials: "include", body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.suggested) {
+      odoState.suggested = data.suggested;
+      document.getElementById("odoReading").value = data.suggested;
+      metaBox.innerHTML += `<p>AI suggested reading: <strong>${data.suggested} km</strong> — please double check it's correct.</p>`;
+    }
+  } catch (err) {
+    showError(errorBox, "Could not process that photo: " + err.message);
+  }
+}
+
+async function submit() {
+  const errorBox = document.getElementById("error");
+  errorBox.innerHTML = "";
+
+  const odoReading = document.getElementById("odoReading").value;
+  if (!odoState.blob) return showError(errorBox, "Please take a photo of the odometer");
+  if (!odoReading || Number(odoReading) <= 0) return showError(errorBox, "Please enter the odometer reading");
+  for (const item of CHECKLIST_ITEMS) {
+    const a = answers[item.key];
+    if (a.result === "fail" && !a.note.trim()) {
+      return showError(errorBox, `Please add a note for "${item.label.split(" — ")[0]}"`);
+    }
+  }
+  if (!document.getElementById("declaration").checked) {
+    return showError(errorBox, "Please confirm the declaration before submitting");
+  }
+
+  const submitBtn = document.getElementById("submitBtn");
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Submitting…";
+
+  try {
+    const formData = new FormData();
+    formData.append("vehicle_id", vehicleId);
+    formData.append("odo_reading", odoReading);
+    if (odoState.suggested) formData.append("odo_ai_suggested", odoState.suggested);
+    formData.append("odo_captured_live", String(odoState.capturedLive));
+    if (odoState.takenAt) formData.append("odo_taken_at", odoState.takenAt);
+    if (odoState.fileModifiedAt) formData.append("odo_file_modified_at", odoState.fileModifiedAt);
+    formData.append("odo_photo", odoState.blob, "odo.jpg");
+    formData.append("declaration_accepted", "true");
+
+    const itemsPayload = [];
+    for (const item of CHECKLIST_ITEMS) {
+      const a = answers[item.key];
+      itemsPayload.push({ key: item.key, label: item.label, result: a.result, note: a.result === "fail" ? a.note : "" });
+      if (a.result === "fail" && a.photoFile) {
+        const compressed = await compressImage(a.photoFile);
+        formData.append(`photo_${item.key}`, compressed, `${item.key}.jpg`);
+      }
+    }
+    formData.append("items_json", JSON.stringify(itemsPayload));
+
+    const res = await fetch("/api/vehicle-checks", { method: "POST", credentials: "include", body: formData });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Something went wrong");
+
+    window.location.href = "/portal/vehicle/";
+  } catch (err) {
+    showError(errorBox, err.message);
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Submit vehicle check";
+  }
+}
+
+(async () => {
+  try {
+    await requireRole("subcontractor");
+    if (!vehicleId) throw new Error("No vehicle selected");
+    const { vehicles } = await api.get("/vehicles");
+    vehicle = vehicles.find((v) => v.id === vehicleId);
+    if (!vehicle) throw new Error("Vehicle not found");
+    document.getElementById("pageTitle").textContent = vehicle.rego;
+    render();
+  } catch (err) {
+    if (err.message !== "redirecting") showError(document.getElementById("error"), err.message);
+  }
+})();
+</script>
+</body>
+</html>

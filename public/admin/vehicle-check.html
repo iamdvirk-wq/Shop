@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vehicle Check Detail — GRD Virk Pty Ltd</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+<div class="topbar">
+  <div class="titles-group">
+    <div class="brand-mark">GV</div>
+    <div class="titles">
+    <span class="brand">GRD Virk Pty Ltd</span>
+    <h1>Check detail</h1>
+  </div>
+  </div>
+  <div class="topbar-links">
+    <a href="/admin/vehicle-checks.html">Back</a>
+  </div>
+</div>
+<div class="page">
+  <div id="error"></div>
+  <div id="notice"></div>
+  <div id="content">Loading…</div>
+</div>
+<script src="/assets/app.js"></script>
+<script>
+const checkId = new URLSearchParams(window.location.search).get("id");
+let check;
+
+function render() {
+  const content = document.getElementById("content");
+  const freshnessWarning = !check.odo_photo_captured_live
+    ? `<div class="notice-box">⚠️ This odometer photo may not have been taken at the moment of submission${check.odo_photo_taken_at ? ` (appears to be from ${new Date(check.odo_photo_taken_at).toLocaleString()})` : ""}.</div>`
+    : "";
+
+  content.innerHTML = `
+    <div class="card">
+      <div class="row" style="align-items:center;">
+        <h2 style="margin:0;">${check.vehicles?.rego || ""}</h2>
+        <span class="badge ${check.has_issues ? 'returned' : 'paid'}">${check.has_issues ? 'Issues found' : 'All good'}</span>
+      </div>
+      <p class="muted">${check.vehicles?.nickname || ""} ${check.vehicles?.depot ? `· ${check.vehicles.depot}` : ""}</p>
+      <p class="muted">Checked by ${check.subcontractors?.legal_name || ""} · Week of ${check.week_start_date}</p>
+    </div>
+
+    <div class="card">
+      <h3>Odometer</h3>
+      <p><strong>${check.odo_reading} km</strong>${check.odo_ai_suggested ? ` <span class="muted">(AI suggested: ${check.odo_ai_suggested} km)</span>` : ""}</p>
+      ${freshnessWarning}
+      ${check.odo_photo_url ? `<img src="${check.odo_photo_url}" style="max-width:100%;border-radius:10px;" />` : ""}
+    </div>
+
+    <div class="card">
+      <h3>Checklist</h3>
+      <div id="items"></div>
+    </div>
+  `;
+
+  const itemsWrap = document.getElementById("items");
+  for (const item of check.vehicle_check_items) {
+    const row = el(`
+      <div class="extra-item" style="border-style:solid; ${item.result === 'fail' ? 'border-color:#c0392b;' : 'border-color:#e3e6ee;'}">
+        <div class="row" style="align-items:center;">
+          <strong>${item.item_label}</strong>
+          <span class="badge ${item.result === 'fail' ? 'returned' : 'paid'}">${item.result}</span>
+        </div>
+        ${item.note ? `<p class="muted" style="margin:6px 0;">${item.note}</p>` : ""}
+        ${item.photo_url ? `<img src="${item.photo_url}" style="max-width:100%;border-radius:10px;margin-top:6px;" />` : ""}
+        ${item.result === 'fail' ? `
+          <div style="margin-top:10px;">
+            ${item.resolved
+              ? `<span class="badge paid">Resolved${item.resolved_note ? ': ' + item.resolved_note : ''}</span>`
+              : `<button class="btn small" data-action="resolve" data-id="${item.id}">Mark resolved</button>`}
+          </div>
+        ` : ""}
+      </div>
+    `);
+    itemsWrap.appendChild(row);
+  }
+
+  itemsWrap.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-action='resolve']");
+    if (!btn) return;
+    const note = prompt("Optional note about the fix:") || "";
+    try {
+      await api.patch(`/admin/vehicle-checks/${checkId}/items/${btn.dataset.id}`, { resolved: true, resolved_note: note });
+      const full = await api.get(`/admin/vehicle-checks/${checkId}`);
+      check = full.check;
+      render();
+    } catch (err) {
+      showError(document.getElementById("error"), err.message);
+    }
+  });
+}
+
+(async () => {
+  try {
+    await requireRole("admin");
+    const res = await api.get(`/admin/vehicle-checks/${checkId}`);
+    check = res.check;
+    render();
+  } catch (err) {
+    if (err.message !== "redirecting") showError(document.getElementById("error"), err.message);
+  }
+})();
+</script>
+</body>
+</html>

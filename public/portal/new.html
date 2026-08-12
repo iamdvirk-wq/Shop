@@ -19,7 +19,7 @@
   </div>
   </div>
   <div class="topbar-links">
-    <a href="/portal/">Back</a>
+    <a href="/portal/invoices.html">Back</a>
   </div>
 </div>
 <div class="page">
@@ -212,14 +212,14 @@ async function save(thenSubmit) {
   try {
     await ensureSaved();
     if (!thenSubmit) {
-      window.location.href = "/portal/";
+      window.location.href = "/portal/invoices.html";
       return;
     }
     if (!document.getElementById("declaration").checked) {
       throw new Error("Please tick the declaration box before submitting");
     }
     await api.post(`/invoices/${invoice.id}/submit`, { declaration_accepted: true });
-    window.location.href = "/portal/";
+    window.location.href = "/portal/invoices.html";
   } catch (err) {
     showError(errorBox, err.message);
   }
@@ -237,7 +237,7 @@ async function previewPdf() {
 async function deleteDraft() {
   if (!confirm("Delete this draft?")) return;
   await api.delete(`/invoices/${invoice.id}`);
-  window.location.href = "/portal/";
+  window.location.href = "/portal/invoices.html";
 }
 
 function renderLocked(content) {

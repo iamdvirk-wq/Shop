@@ -99,3 +99,20 @@ export async function storageDownload(env, bucket, path) {
   if (!res.ok) return null;
   return new Uint8Array(await res.arrayBuffer());
 }
+
+// Returns a time-limited URL the browser can load a private-bucket photo
+// from directly, without proxying the bytes through our own function.
+export async function createSignedUrl(env, bucket, path, expiresInSeconds = 3600) {
+  const res = await fetch(
+    `${env.SUPABASE_URL}/storage/v1/object/sign/${bucket}/${path}`,
+    {
+      method: "POST",
+      headers: headers(env),
+      body: JSON.stringify({ expiresIn: expiresInSeconds }),
+    }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data || !data.signedURL) return null;
+  return `${env.SUPABASE_URL}/storage/v1${data.signedURL}`;
+}

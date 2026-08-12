@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vehicle Checks — GRD Virk Pty Ltd</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+<div class="topbar">
+  <div class="titles-group">
+    <div class="brand-mark">GV</div>
+    <div class="titles">
+    <span class="brand">GRD Virk Pty Ltd</span>
+    <h1>Vehicle Checks</h1>
+  </div>
+  </div>
+  <div class="topbar-links">
+    <a href="/admin/">Dashboard</a>
+    <a href="/admin/vehicles.html">Vehicles</a>
+  </div>
+</div>
+<div class="page">
+  <div id="error"></div>
+
+  <div class="card">
+    <h3>Filters</h3>
+    <div class="filters">
+      <select id="f_vehicle"><option value="">All vehicles</option></select>
+      <select id="f_issues">
+        <option value="">All checks</option>
+        <option value="true">Only ones with issues</option>
+      </select>
+    </div>
+    <button class="btn secondary" id="applyFilters">Apply filters</button>
+  </div>
+
+  <div id="list"></div>
+</div>
+<script src="/assets/app.js"></script>
+<script>
+async function loadVehicles() {
+  const { vehicles } = await api.get("/admin/vehicles");
+  const sel = document.getElementById("f_vehicle");
+  for (const v of vehicles) {
+    const opt = document.createElement("option");
+    opt.value = v.id;
+    opt.textContent = v.rego;
+    sel.appendChild(opt);
+  }
+}
+
+function buildQuery() {
+  const q = new URLSearchParams();
+  const vehicle = document.getElementById("f_vehicle").value;
+  const issues = document.getElementById("f_issues").value;
+  if (vehicle) q.set("vehicle_id", vehicle);
+  if (issues) q.set("has_issues", issues);
+  return q.toString();
+}
+
+async function loadChecks() {
+  const errorBox = document.getElementById("error");
+  errorBox.innerHTML = "";
+  try {
+    const { checks } = await api.get(`/admin/vehicle-checks?${buildQuery()}`);
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+    if (checks.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div class="glyph">🚐</div>No checks match this filter.</div>';
+      return;
+    }
+    for (const c of checks) {
+      const failCount = c.vehicle_check_items.filter((i) => i.result === "fail").length;
+      const item = el(`
+        <div class="invoice-item">
+          <div class="top">
+            <strong>${c.vehicles?.rego || ""}</strong>
+            <span class="badge ${failCount ? 'returned' : 'paid'}">${failCount ? failCount + ' issue' + (failCount > 1 ? 's' : '') : 'All good'}</span>
+          </div>
+          <div class="meta">${c.subcontractors?.legal_name || ""} · ODO ${c.odo_reading} km · Week of ${c.week_start_date}</div>
+        </div>
+      `);
+      item.addEventListener("click", () => window.location.href = `/admin/vehicle-check.html?id=${c.id}`);
+      list.appendChild(item);
+    }
+  } catch (err) {
+    showError(errorBox, err.message);
+  }
+}
+
+document.getElementById("applyFilters").addEventListener("click", loadChecks);
+
+(async () => {
+  try {
+    await requireRole("admin");
+    await loadVehicles();
+    await loadChecks();
+  } catch (err) {
+    if (err.message !== "redirecting") showError(document.getElementById("error"), err.message);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vehicles — GRD Virk Pty Ltd</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+<div class="topbar">
+  <div class="titles-group">
+    <div class="brand-mark">GV</div>
+    <div class="titles">
+    <span class="brand">GRD Virk Pty Ltd</span>
+    <h1>Vehicles</h1>
+  </div>
+  </div>
+  <div class="topbar-links">
+    <a href="/admin/">Dashboard</a>
+    <a href="/admin/vehicle-checks.html">Checks</a>
+  </div>
+</div>
+<div class="page">
+  <div id="error"></div>
+  <div id="notice"></div>
+
+  <button class="btn" id="toggleAdd">+ Add vehicle</button>
+  <div class="card" id="addForm" style="display:none;">
+    <h3>New vehicle</h3>
+    <label>Registration (rego)</label>
+    <input id="add_rego" placeholder="e.g. ABC123" />
+    <label>Nickname / make &amp; model</label>
+    <input id="add_nickname" placeholder="e.g. White Hilux" />
+    <label>Depot</label>
+    <input id="add_depot" />
+    <button class="btn" id="createVehicle">Add vehicle</button>
+  </div>
+
+  <div id="list"></div>
+</div>
+<script src="/assets/app.js"></script>
+<script>
+async function loadList() {
+  const { vehicles } = await api.get("/admin/vehicles");
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+  for (const v of vehicles) {
+    const card = el(`<div class="card"></div>`);
+    card.innerHTML = `
+      <div class="row" style="align-items:center;">
+        <h2 style="margin:0;">${v.rego}</h2>
+        <span class="badge ${v.status === 'active' ? 'approved' : 'cancelled'}">${v.status}</span>
+      </div>
+      <p class="muted">${v.nickname || ""} ${v.depot ? `· ${v.depot}` : ""}</p>
+      <button class="btn small secondary" data-action="toggleEdit" data-id="${v.id}">Edit</button>
+      <button class="btn small ${v.status === 'active' ? 'danger' : ''}" data-action="toggleStatus" data-id="${v.id}" data-current="${v.status}">
+        ${v.status === 'active' ? 'Retire vehicle' : 'Reactivate vehicle'}
+      </button>
+      <button class="btn small danger" data-action="deleteVehicle" data-id="${v.id}">Delete permanently</button>
+      <div id="edit_${v.id}" style="display:none; margin-top:12px;">
+        <label>Registration (rego)</label>
+        <input id="edit_${v.id}_rego" value="${v.rego}" />
+        <label>Nickname / make &amp; model</label>
+        <input id="edit_${v.id}_nickname" value="${v.nickname || ''}" />
+        <label>Depot</label>
+        <input id="edit_${v.id}_depot" value="${v.depot || ''}" />
+        <button class="btn" data-action="saveEdit" data-id="${v.id}">Save changes</button>
+      </div>
+    `;
+    list.appendChild(card);
+  }
+}
+
+document.getElementById("toggleAdd").addEventListener("click", () => {
+  const form = document.getElementById("addForm");
+  form.style.display = form.style.display === "none" ? "block" : "none";
+});
+
+document.getElementById("createVehicle").addEventListener("click", async () => {
+  const errorBox = document.getElementById("error");
+  errorBox.innerHTML = "";
+  try {
+    await api.post("/admin/vehicles", {
+      rego: document.getElementById("add_rego").value,
+      nickname: document.getElementById("add_nickname").value,
+      depot: document.getElementById("add_depot").value,
+    });
+    document.getElementById("addForm").style.display = "none";
+    document.getElementById("add_rego").value = "";
+    document.getElementById("add_nickname").value = "";
+    document.getElementById("add_depot").value = "";
+    loadList();
+  } catch (err) {
+    showError(errorBox, err.message);
+  }
+});
+
+async function handleListClick(e) {
+  const btn = e.target.closest("button[data-action]");
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const id = btn.dataset.id;
+  const errorBox = document.getElementById("error");
+  errorBox.innerHTML = "";
+  try {
+    if (action === "toggleEdit") {
+      const panel = document.getElementById(`edit_${id}`);
+      panel.style.display = panel.style.display === "none" ? "block" : "none";
+    } else if (action === "saveEdit") {
+      await api.patch(`/admin/vehicles/${id}`, {
+        rego: document.getElementById(`edit_${id}_rego`).value,
+        nickname: document.getElementById(`edit_${id}_nickname`).value,
+        depot: document.getElementById(`edit_${id}_depot`).value,
+      });
+      loadList();
+    } else if (action === "toggleStatus") {
+      const next = btn.dataset.current === "active" ? "retired" : "active";
+      await api.patch(`/admin/vehicles/${id}`, { status: next });
+      loadList();
+    } else if (action === "deleteVehicle") {
+      if (!confirm("Permanently delete this vehicle AND its full check history? This cannot be undone.")) return;
+      const pinBody = promptPin("this vehicle and its check history");
+      if (!pinBody) return;
+      await api.delete(`/admin/vehicles/${id}`, pinBody);
+      loadList();
+    }
+  } catch (err) {
+    showError(errorBox, err.message);
+  }
+}
+
+(async () => {
+  try {
+    await requireRole("admin");
+    document.getElementById("list").addEventListener("click", handleListClick);
+    await loadList();
+  } catch (err) {
+    if (err.message !== "redirecting") showError(document.getElementById("error"), err.message);
+  }
+})();
+</script>
+</body>
+</html>

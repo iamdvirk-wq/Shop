@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>My Invoices — GRD Virk Pty Ltd</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+<div class="topbar">
+  <div class="titles-group">
+    <div class="brand-mark">GV</div>
+    <div class="titles">
+    <span class="brand">GRD Virk Pty Ltd</span>
+    <h1 id="who">My Invoices</h1>
+  </div>
+  </div>
+  <div class="topbar-links">
+    <a href="/portal/">Home</a>
+    <a href="/portal/profile.html">My details</a>
+    <button class="link" onclick="logout()">Log out</button>
+  </div>
+</div>
+<div class="page">
+  <div id="error"></div>
+  <a class="btn" href="/portal/new.html">+ New invoice</a>
+  <div id="list" style="margin-top:16px;"></div>
+</div>
+<script src="/assets/app.js"></script>
+<script>
+(async () => {
+  const me = await requireRole("subcontractor");
+  document.getElementById("who").textContent = me.legal_name || "My Invoices";
+
+  const list = document.getElementById("list");
+  try {
+    const { invoices } = await api.get("/invoices");
+    if (invoices.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div class="glyph">🧾</div>No invoices yet. Tap "New invoice" to get started.</div>';
+      return;
+    }
+    list.innerHTML = "";
+    for (const inv of invoices) {
+      const label = inv.invoice_number || "Draft";
+      const item = el(`
+        <div class="invoice-item">
+          <div class="top">
+            <strong>${label}</strong>
+            <span class="badge ${inv.status}">${statusLabel(inv.status)}</span>
+          </div>
+          <div class="amount">${money(inv.total_payable)}</div>
+          <div class="meta">${inv.period_start} to ${inv.period_end}</div>
+          ${inv.status === "returned" && inv.admin_note ? `<div class="meta" style="color:#b91c1c;">Admin note: ${inv.admin_note}</div>` : ""}
+        </div>
+      `);
+      item.addEventListener("click", () => {
+        window.location.href = `/portal/new.html?id=${inv.id}`;
+      });
+      list.appendChild(item);
+    }
+  } catch (err) {
+    showError(document.getElementById("error"), err.message);
+  }
+})();
+</script>
+</body>
+</html>

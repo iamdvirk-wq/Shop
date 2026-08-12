@@ -50,6 +50,7 @@ export const onRequestPost = (ctx) =>
       daily_rate_incl_gst: body.daily_rate_incl_gst,
       depot: body.depot || null,
       invoice_prefix: body.invoice_prefix.toUpperCase(),
+      default_vehicle_id: body.default_vehicle_id || null,
       status: "active",
     });
 

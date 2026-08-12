@@ -14,7 +14,7 @@ export const onRequestGet = (ctx) =>
 
     const rows = await dbGet(
       env,
-      `subcontractors?id=eq.${session.id}&select=id,legal_name,business_name,depot,daily_rate_incl_gst,status,bank_account_name,bank_bsb,bank_account_number,address,email,phone,pending_legal_name,pending_business_name,pending_abn`
+      `subcontractors?id=eq.${session.id}&select=id,legal_name,business_name,depot,daily_rate_incl_gst,status,bank_account_name,bank_bsb,bank_account_number,address,email,phone,pending_legal_name,pending_business_name,pending_abn,default_vehicle_id`
     );
     const sub = rows && rows[0];
     if (!sub || sub.status !== "active") {

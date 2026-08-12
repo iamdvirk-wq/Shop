@@ -53,16 +53,24 @@ const FIELD_LAYOUT = [
   ["daily_rate_incl_gst", "Daily rate (GST included)"],
   ["depot", "Depot"],
   ["invoice_prefix", "Invoice number prefix (e.g. JOHN)"],
+  ["default_vehicle_id", "Usual vehicle"],
 ];
 
+let vehiclesList = [];
+
 function fieldsHtml(prefix, values = {}) {
-  return FIELD_LAYOUT.map(([key, label]) => `
+  return FIELD_LAYOUT.map(([key, label]) => {
+    if (key === "default_vehicle_id") {
+      const options = ['<option value="">None</option>']
+        .concat(vehiclesList.map((v) => `<option value="${v.id}" ${values[key] === v.id ? "selected" : ""}>${v.rego}</option>`));
+      return `<label>${label}</label><select id="${prefix}_${key}">${options.join("")}</select>`;
+    }
+    return `
     <label>${label}</label>
     <input id="${prefix}_${key}" value="${values[key] ?? ""}" ${key === "daily_rate_incl_gst" ? 'type="number" step="0.01"' : ""} />
-  `).join("");
+  `;
+  }).join("");
 }
-
-document.getElementById("addFields").innerHTML = fieldsHtml("add");
 
 document.getElementById("toggleAdd").addEventListener("click", () => {
   const form = document.getElementById("addForm");
@@ -73,7 +81,10 @@ document.getElementById("createSub").addEventListener("click", async () => {
   const errorBox = document.getElementById("error");
   errorBox.innerHTML = "";
   const payload = {};
-  for (const [key] of FIELD_LAYOUT) payload[key] = document.getElementById(`add_${key}`).value;
+  for (const [key] of FIELD_LAYOUT) {
+    const value = document.getElementById(`add_${key}`).value;
+    payload[key] = key === "default_vehicle_id" && !value ? null : value;
+  }
   try {
     await api.post("/admin/subcontractors", payload);
     document.getElementById("addForm").style.display = "none";
@@ -135,7 +146,7 @@ async function handleListClick(e) {
       for (const [key] of FIELD_LAYOUT) {
         const value = document.getElementById(`edit_${id}_${key}`).value;
         if (key === "password" && !value) continue; // blank = keep existing password
-        payload[key] = value;
+        payload[key] = key === "default_vehicle_id" && !value ? null : value;
       }
       await api.patch(`/admin/subcontractors/${id}`, payload);
       loadList();
@@ -167,6 +178,9 @@ async function handleListClick(e) {
 (async () => {
   try {
     await requireRole("admin");
+    const { vehicles } = await api.get("/admin/vehicles");
+    vehiclesList = vehicles;
+    document.getElementById("addFields").innerHTML = fieldsHtml("add");
     document.getElementById("list").addEventListener("click", handleListClick);
     await loadList();
   } catch (err) {

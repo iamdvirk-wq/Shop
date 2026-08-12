@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vehicle Check — GRD Virk Pty Ltd</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+<div class="topbar">
+  <div class="titles-group">
+    <div class="brand-mark">GV</div>
+    <div class="titles">
+    <span class="brand">GRD Virk Pty Ltd</span>
+    <h1>Vehicle Check</h1>
+  </div>
+  </div>
+  <div class="topbar-links">
+    <a href="/portal/">Home</a>
+  </div>
+</div>
+<div class="page">
+  <div id="error"></div>
+  <div id="content">Loading…</div>
+</div>
+<script src="/assets/app.js"></script>
+<script>
+(async () => {
+  try {
+    const me = await requireRole("subcontractor");
+    const { week_label, vehicles } = await api.get("/vehicle-checks/current-week");
+    const content = document.getElementById("content");
+
+    if (vehicles.length === 0) {
+      content.innerHTML = '<div class="empty-state"><div class="glyph">🚐</div>No vehicles have been set up yet. Ask the admin to add one.</div>';
+      return;
+    }
+
+    content.innerHTML = `<div class="card"><h3>This week</h3><p class="muted">${week_label}</p></div><div id="list"></div>`;
+    const list = document.getElementById("list");
+
+    // Show their usual van first, if set.
+    vehicles.sort((a, b) => {
+      if (a.id === me.default_vehicle_id) return -1;
+      if (b.id === me.default_vehicle_id) return 1;
+      return 0;
+    });
+
+    for (const v of vehicles) {
+      const isDefault = v.id === me.default_vehicle_id;
+      const item = el(`
+        <div class="invoice-item">
+          <div class="top">
+            <strong>${v.rego}${isDefault ? " ⭐" : ""}</strong>
+            ${v.checked_this_week
+              ? `<span class="badge ${v.has_issues ? "returned" : "paid"}">${v.has_issues ? "Checked — issues" : "Checked"}</span>`
+              : `<span class="badge draft">Not checked yet</span>`}
+          </div>
+          <div class="meta">${v.nickname || ""}${v.depot ? ` · ${v.depot}` : ""}</div>
+          ${v.checked_this_week ? `<div class="meta">Done by ${v.checked_by} on ${new Date(v.checked_at).toLocaleDateString()}</div>` : ""}
+        </div>
+      `);
+      if (!v.checked_this_week) {
+        item.addEventListener("click", () => {
+          window.location.href = `/portal/vehicle/check.html?vehicle_id=${v.id}`;
+        });
+      } else {
+        item.style.cursor = "default";
+        item.style.opacity = "0.75";
+      }
+      list.appendChild(item);
+    }
+  } catch (err) {
+    if (err.message !== "redirecting") showError(document.getElementById("error"), err.message);
+  }
+})();
+</script>
+</body>
+</html>
