@@ -20,6 +20,7 @@ export const onRequestPatch = (ctx) =>
     if (body.rego) patch.rego = body.rego.trim().toUpperCase();
     if ("nickname" in body) patch.nickname = body.nickname;
     if ("depot" in body) patch.depot = body.depot;
+    if (body.type === "van" || body.type === "bike") patch.type = body.type;
     if (body.status) patch.status = body.status;
     patch.updated_at = new Date().toISOString();
 

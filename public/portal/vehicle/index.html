@@ -54,7 +54,7 @@
       const item = el(`
         <div class="invoice-item">
           <div class="top">
-            <strong>${v.rego}${isDefault ? " ⭐" : ""}</strong>
+            <strong>${v.type === 'bike' ? '🏍️' : '🚐'} ${v.rego}${isDefault ? " ⭐" : ""}</strong>
             ${v.checked_this_week
               ? `<span class="badge ${v.has_issues ? "returned" : "paid"}">${v.has_issues ? "Checked — issues" : "Checked"}</span>`
               : `<span class="badge draft">Not checked yet</span>`}

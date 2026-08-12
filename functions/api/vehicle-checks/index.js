@@ -1,7 +1,7 @@
 import { requireSubcontractor } from "../../_lib/session.js";
 import { dbGet, dbInsert, storageUpload } from "../../_lib/db.js";
 import { json, errorResponse, withHandler } from "../../_lib/util.js";
-import { CHECKLIST_ITEMS } from "../../_lib/checklist.js";
+import { checklistForType } from "../../_lib/checklist.js";
 import { currentWeekStartDate } from "../../_lib/week.js";
 
 export const onRequestGet = (ctx) =>
@@ -47,8 +47,15 @@ export const onRequestPost = (ctx) =>
       return errorResponse("Please confirm the declaration before submitting", 400);
     }
 
-    const knownKeys = new Set(CHECKLIST_ITEMS.map((i) => i.key));
-    if (!Array.isArray(items) || items.length !== CHECKLIST_ITEMS.length) {
+    const vehicleRows = await dbGet(env, `vehicles?id=eq.${vehicleId}&select=id,rego,status,type`);
+    const vehicle = vehicleRows[0];
+    if (!vehicle || vehicle.status !== "active") {
+      return errorResponse("That vehicle is not available", 400);
+    }
+
+    const checklistItems = checklistForType(vehicle.type);
+    const knownKeys = new Set(checklistItems.map((i) => i.key));
+    if (!Array.isArray(items) || items.length !== checklistItems.length) {
       return errorResponse("The full checklist must be completed", 400);
     }
     for (const item of items) {
@@ -57,12 +64,6 @@ export const onRequestPost = (ctx) =>
       if (item.result === "fail" && !item.note?.trim()) {
         return errorResponse(`Please add a note explaining the issue with "${item.label}"`, 400);
       }
-    }
-
-    const vehicleRows = await dbGet(env, `vehicles?id=eq.${vehicleId}&select=id,rego,status`);
-    const vehicle = vehicleRows[0];
-    if (!vehicle || vehicle.status !== "active") {
-      return errorResponse("That vehicle is not available", 400);
     }
 
     const weekStart = currentWeekStartDate();

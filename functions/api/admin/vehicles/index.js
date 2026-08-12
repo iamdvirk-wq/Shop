@@ -21,6 +21,7 @@ export const onRequestPost = (ctx) =>
       rego: body.rego.trim().toUpperCase(),
       nickname: body.nickname || null,
       depot: body.depot || null,
+      type: body.type === "bike" ? "bike" : "van",
       status: "active",
     });
     return json({ vehicle: row }, { status: 201 });

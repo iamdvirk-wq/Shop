@@ -32,6 +32,11 @@
     <h3>New vehicle</h3>
     <label>Registration (rego)</label>
     <input id="add_rego" placeholder="e.g. ABC123" />
+    <label>Type</label>
+    <select id="add_type">
+      <option value="van">Van</option>
+      <option value="bike">Bike</option>
+    </select>
     <label>Nickname / make &amp; model</label>
     <input id="add_nickname" placeholder="e.g. White Hilux" />
     <label>Depot</label>
@@ -51,10 +56,10 @@ async function loadList() {
     const card = el(`<div class="card"></div>`);
     card.innerHTML = `
       <div class="row" style="align-items:center;">
-        <h2 style="margin:0;">${v.rego}</h2>
+        <h2 style="margin:0;">${v.type === 'bike' ? '🏍️' : '🚐'} ${v.rego}</h2>
         <span class="badge ${v.status === 'active' ? 'approved' : 'cancelled'}">${v.status}</span>
       </div>
-      <p class="muted">${v.nickname || ""} ${v.depot ? `· ${v.depot}` : ""}</p>
+      <p class="muted">${v.type === 'bike' ? 'Bike' : 'Van'} · ${v.nickname || ""} ${v.depot ? `· ${v.depot}` : ""}</p>
       <button class="btn small secondary" data-action="toggleEdit" data-id="${v.id}">Edit</button>
       <button class="btn small ${v.status === 'active' ? 'danger' : ''}" data-action="toggleStatus" data-id="${v.id}" data-current="${v.status}">
         ${v.status === 'active' ? 'Retire vehicle' : 'Reactivate vehicle'}
@@ -63,6 +68,11 @@ async function loadList() {
       <div id="edit_${v.id}" style="display:none; margin-top:12px;">
         <label>Registration (rego)</label>
         <input id="edit_${v.id}_rego" value="${v.rego}" />
+        <label>Type</label>
+        <select id="edit_${v.id}_type">
+          <option value="van" ${v.type !== 'bike' ? 'selected' : ''}>Van</option>
+          <option value="bike" ${v.type === 'bike' ? 'selected' : ''}>Bike</option>
+        </select>
         <label>Nickname / make &amp; model</label>
         <input id="edit_${v.id}_nickname" value="${v.nickname || ''}" />
         <label>Depot</label>
@@ -85,11 +95,13 @@ document.getElementById("createVehicle").addEventListener("click", async () => {
   try {
     await api.post("/admin/vehicles", {
       rego: document.getElementById("add_rego").value,
+      type: document.getElementById("add_type").value,
       nickname: document.getElementById("add_nickname").value,
       depot: document.getElementById("add_depot").value,
     });
     document.getElementById("addForm").style.display = "none";
     document.getElementById("add_rego").value = "";
+    document.getElementById("add_type").value = "van";
     document.getElementById("add_nickname").value = "";
     document.getElementById("add_depot").value = "";
     loadList();
@@ -112,6 +124,7 @@ async function handleListClick(e) {
     } else if (action === "saveEdit") {
       await api.patch(`/admin/vehicles/${id}`, {
         rego: document.getElementById(`edit_${id}_rego`).value,
+        type: document.getElementById(`edit_${id}_type`).value,
         nickname: document.getElementById(`edit_${id}_nickname`).value,
         depot: document.getElementById(`edit_${id}_depot`).value,
       });

@@ -6,6 +6,6 @@ export const onRequestGet = (ctx) =>
   withHandler(async () => {
     const { request, env } = ctx;
     await requireSubcontractor(request, env);
-    const rows = await dbGet(env, "vehicles?status=eq.active&select=id,rego,nickname,depot&order=rego.asc");
+    const rows = await dbGet(env, "vehicles?status=eq.active&select=id,rego,nickname,depot,type&order=rego.asc");
     return json({ vehicles: rows });
   });

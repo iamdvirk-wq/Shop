@@ -30,7 +30,7 @@
 <script src="/assets/app.js"></script>
 <script src="/assets/photo.js"></script>
 <script>
-const CHECKLIST_ITEMS = [
+const VAN_CHECKLIST_ITEMS = [
   { key: "tyres", label: "Tyres — tread, pressure, cuts/damage, obvious uneven wear" },
   { key: "wheels", label: "Wheels — no visible damage or loose/missing wheel nuts" },
   { key: "headlights", label: "Headlights — low/high beam working" },
@@ -54,8 +54,29 @@ const CHECKLIST_ITEMS = [
   { key: "cleanliness", label: "General cleanliness — cabin and cargo area reasonably clean" },
 ];
 
+const BIKE_CHECKLIST_ITEMS = [
+  { key: "tyres", label: "Tyres — tread, pressure and no visible damage" },
+  { key: "wheels", label: "Wheels — no visible damage or loose parts" },
+  { key: "brakes", label: "Front & rear brakes — working normally" },
+  { key: "headlight", label: "Headlight — low/high beam working" },
+  { key: "brake_light", label: "Brake light — working" },
+  { key: "indicators", label: "Indicators & hazards — working" },
+  { key: "mirrors", label: "Mirrors — secure and undamaged" },
+  { key: "horn", label: "Horn — working" },
+  { key: "steering", label: "Steering/handlebars — no looseness or damage" },
+  { key: "chain", label: "Chain — correct tension and condition" },
+  { key: "oil_coolant", label: "Oil/coolant — correct level/no obvious leaks" },
+  { key: "warning_lights", label: "Warning lights — no unexplained warning lights" },
+  { key: "body", label: "Body — no new damage" },
+  { key: "registration_plate", label: "Number plate — secure and readable" },
+  { key: "delivery_rack", label: "Delivery rack/carrier — secure and undamaged" },
+  { key: "delivery_bag", label: "Delivery bag/box — secure and undamaged" },
+  { key: "cleanliness", label: "General cleanliness — bike reasonably clean" },
+];
+
 const vehicleId = new URLSearchParams(window.location.search).get("vehicle_id");
 let vehicle = null;
+let CHECKLIST_ITEMS = VAN_CHECKLIST_ITEMS; // set to the right list once the vehicle loads
 let odoState = { blob: null, suggested: null, capturedLive: false, takenAt: null, fileModifiedAt: null };
 const answers = {}; // key -> { result, note, photoFile }
 
@@ -63,7 +84,7 @@ function render() {
   const content = document.getElementById("content");
   content.innerHTML = `
     <div class="card">
-      <h3>${vehicle.rego}${vehicle.nickname ? ` — ${vehicle.nickname}` : ""}</h3>
+      <h3>${vehicle.type === 'bike' ? '🏍️' : '🚐'} ${vehicle.rego}${vehicle.nickname ? ` — ${vehicle.nickname}` : ""}</h3>
       <p class="muted">${vehicle.depot || ""}</p>
     </div>
 
@@ -250,6 +271,7 @@ async function submit() {
     const { vehicles } = await api.get("/vehicles");
     vehicle = vehicles.find((v) => v.id === vehicleId);
     if (!vehicle) throw new Error("Vehicle not found");
+    CHECKLIST_ITEMS = vehicle.type === "bike" ? BIKE_CHECKLIST_ITEMS : VAN_CHECKLIST_ITEMS;
     document.getElementById("pageTitle").textContent = vehicle.rego;
     render();
   } catch (err) {

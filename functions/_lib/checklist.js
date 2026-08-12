@@ -1,7 +1,8 @@
-// The standard weekly vehicle check items. `key` is stored on each answer
-// row; `label` is snapshotted onto the row too, so relabeling this list
-// later never rewrites history.
-export const CHECKLIST_ITEMS = [
+// Two checklists — vans get the full 21-item list, bikes get a shorter,
+// bike-relevant one. `key` is stored on each answer row; `label` is
+// snapshotted onto the row too, so relabeling this list later never
+// rewrites history.
+export const VAN_CHECKLIST_ITEMS = [
   { key: "tyres", label: "Tyres — tread, pressure, cuts/damage, obvious uneven wear" },
   { key: "wheels", label: "Wheels — no visible damage or loose/missing wheel nuts" },
   { key: "headlights", label: "Headlights — low/high beam working" },
@@ -24,3 +25,27 @@ export const CHECKLIST_ITEMS = [
   { key: "registration_plate", label: "Registration plate — secure and readable" },
   { key: "cleanliness", label: "General cleanliness — cabin and cargo area reasonably clean" },
 ];
+
+export const BIKE_CHECKLIST_ITEMS = [
+  { key: "tyres", label: "Tyres — tread, pressure and no visible damage" },
+  { key: "wheels", label: "Wheels — no visible damage or loose parts" },
+  { key: "brakes", label: "Front & rear brakes — working normally" },
+  { key: "headlight", label: "Headlight — low/high beam working" },
+  { key: "brake_light", label: "Brake light — working" },
+  { key: "indicators", label: "Indicators & hazards — working" },
+  { key: "mirrors", label: "Mirrors — secure and undamaged" },
+  { key: "horn", label: "Horn — working" },
+  { key: "steering", label: "Steering/handlebars — no looseness or damage" },
+  { key: "chain", label: "Chain — correct tension and condition" },
+  { key: "oil_coolant", label: "Oil/coolant — correct level/no obvious leaks" },
+  { key: "warning_lights", label: "Warning lights — no unexplained warning lights" },
+  { key: "body", label: "Body — no new damage" },
+  { key: "registration_plate", label: "Number plate — secure and readable" },
+  { key: "delivery_rack", label: "Delivery rack/carrier — secure and undamaged" },
+  { key: "delivery_bag", label: "Delivery bag/box — secure and undamaged" },
+  { key: "cleanliness", label: "General cleanliness — bike reasonably clean" },
+];
+
+export function checklistForType(type) {
+  return type === "bike" ? BIKE_CHECKLIST_ITEMS : VAN_CHECKLIST_ITEMS;
+}

@@ -12,7 +12,7 @@ export const onRequestGet = (ctx) =>
     await requireSubcontractor(request, env);
 
     const weekStart = currentWeekStartDate();
-    const vehicles = await dbGet(env, "vehicles?status=eq.active&select=id,rego,nickname,depot&order=rego.asc");
+    const vehicles = await dbGet(env, "vehicles?status=eq.active&select=id,rego,nickname,depot,type&order=rego.asc");
     const checks = await dbGet(
       env,
       `vehicle_checks?week_start_date=eq.${weekStart}&select=vehicle_id,created_at,has_issues,subcontractors(legal_name)`
