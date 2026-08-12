@@ -162,15 +162,26 @@ async function handleOdoFile(e) {
     }
     metaBox.innerHTML = freshnessNote;
 
-    // Ask the AI for a best-guess reading.
-    const formData = new FormData();
-    formData.append("photo", blob, "odo.jpg");
-    const res = await fetch("/api/vehicle-checks/read-odo", { method: "POST", credentials: "include", body: formData });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data.suggested) {
-      odoState.suggested = data.suggested;
-      document.getElementById("odoReading").value = data.suggested;
-      metaBox.innerHTML += `<p>AI suggested reading: <strong>${data.suggested} km</strong> — please double check it's correct.</p>`;
+    // Ask the AI for a best-guess reading. This is a convenience only —
+    // typing the reading in manually always works regardless of what
+    // happens here.
+    metaBox.innerHTML += '<p class="muted">Reading photo with AI…</p>';
+    try {
+      const formData = new FormData();
+      formData.append("photo", blob, "odo.jpg");
+      const res = await fetch("/api/vehicle-checks/read-odo", { method: "POST", credentials: "include", body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.suggested) {
+        odoState.suggested = data.suggested;
+        document.getElementById("odoReading").value = data.suggested;
+        metaBox.innerHTML = freshnessNote + `<p>AI suggested reading: <strong>${data.suggested} km</strong> — please double check it's correct.</p>`;
+      } else if (res.ok) {
+        metaBox.innerHTML = freshnessNote + '<p class="muted">Couldn\'t automatically read a number from this photo — please type the reading in below.</p>';
+      } else {
+        metaBox.innerHTML = freshnessNote + `<p class="muted">AI reading unavailable (${data.error || res.status}) — please type the reading in below.</p>`;
+      }
+    } catch (aiErr) {
+      metaBox.innerHTML = freshnessNote + '<p class="muted">AI reading unavailable — please type the reading in below.</p>';
     }
   } catch (err) {
     showError(errorBox, "Could not process that photo: " + err.message);
