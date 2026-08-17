@@ -29,5 +29,14 @@ jobs:
             echo "No site URL configured — set the VEHICLE_REPORT_URL repository secret." >&2
             exit 1
           fi
-          curl -sS -f -X POST "${URL%/}/api/admin/vehicle-checks/weekly-report" \
-            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"
+          echo "Calling: ${URL%/}/api/admin/vehicle-checks/weekly-report"
+          http_status=$(curl -sS -o response.json -w "%{http_code}" -X POST "${URL%/}/api/admin/vehicle-checks/weekly-report" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}")
+          echo "HTTP status: $http_status"
+          echo "Response body:"
+          cat response.json
+          echo
+          if [ "$http_status" -lt 200 ] || [ "$http_status" -ge 300 ]; then
+            echo "::error::Request failed with HTTP $http_status — see response body above for the reason."
+            exit 1
+          fi
