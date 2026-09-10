@@ -127,8 +127,8 @@ function renderChecklist() {
       <div class="extra-item">
         <label style="margin-top:0;">${item.label}</label>
         <div class="row">
-          <button type="button" class="btn small ${a.result === "pass" ? "" : "ghost"}" data-key="${item.key}" data-result="pass" style="${a.result === "pass" ? "" : "background:#fff;color:#667085;border:1px solid #e3e6ee;"}">Pass</button>
-          <button type="button" class="btn small danger ${a.result === "fail" ? "" : "ghost"}" data-key="${item.key}" data-result="fail" style="${a.result === "fail" ? "" : "background:#fff;color:#c0392b;border:1px solid #c0392b;"}">Fail</button>
+          <button type="button" class="btn checklist-answer ${a.result === "pass" ? "" : "ghost"}" data-key="${item.key}" data-result="pass" style="${a.result === "pass" ? "" : "background:#fff;color:#667085;border:1px solid #e3e6ee;"}">Pass</button>
+          <button type="button" class="btn checklist-answer danger ${a.result === "fail" ? "" : "ghost"}" data-key="${item.key}" data-result="fail" style="${a.result === "fail" ? "" : "background:#fff;color:#c0392b;border:1px solid #c0392b;"}">Fail</button>
         </div>
         ${a.result === "fail" ? `
           <label>What's wrong?</label>

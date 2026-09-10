@@ -137,7 +137,7 @@ h1, h2, h3, .brand-name, .brand-mark {
 .topbar .brand-mark { width: 32px; height: 32px; border-radius: 9px; font-size: 12px; }
 .topbar .titles-group { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .topbar .titles { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
-.topbar .titles .brand { font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold-300); }
+.topbar .titles .brand { font-size: 11.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-300); }
 .topbar .titles h1 { font-size: 16px; margin: 2px 0 0; color: #fff; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar-links { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
 .topbar a, .topbar button.link { color: #cbd4e6; font-size: 13.5px; text-decoration: none; background: none; border: none; padding: 0; cursor: pointer; transition: color .15s var(--ease); }
@@ -197,12 +197,19 @@ textarea { min-height: 70px; resize: vertical; }
 }
 .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-lg); }
 .btn:active { transform: translateY(0); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn:disabled:hover { transform: none; }
 .btn.secondary { background: #fff; color: var(--navy-800); border: 1.5px solid var(--navy-800); box-shadow: none; }
 .btn.secondary:hover { background: var(--bg-tint); box-shadow: none; }
 .btn.danger { background: linear-gradient(160deg, #d0453198 0%, var(--danger) 100%); background: var(--danger); box-shadow: 0 4px 14px rgba(192, 57, 43, 0.25); }
 .btn.danger:hover { background: #a5321f; }
 .btn.small { width: auto; padding: 8px 14px; font-size: 13.5px; margin-top: 0; box-shadow: none; }
 .btn.small:hover { transform: none; box-shadow: none; }
+/* Frequently-tapped mobile controls (e.g. the checklist Pass/Fail buttons)
+   need a full 44pt-equivalent hit target, unlike the compact admin-only
+   .btn.small used with a mouse pointer. */
+.btn.checklist-answer { width: auto; flex: 1; padding: 13px 16px; font-size: 14.5px; min-height: 44px; margin-top: 0; box-shadow: none; }
+.btn.checklist-answer:hover { transform: none; }
 .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); box-shadow: none; }
 .btn.ghost:hover { background: var(--bg-tint); transform: none; box-shadow: none; }
 .btn.gold { background: linear-gradient(160deg, var(--gold-400) 0%, var(--gold-500) 100%); color: var(--navy-950); box-shadow: var(--shadow-gold); }
@@ -232,7 +239,7 @@ textarea { min-height: 70px; resize: vertical; }
 .badge.approved { background: #dcfce7; color: #15803d; }
 .badge.rejected { background: #fee2e2; color: #991b1b; }
 .badge.paid { background: #d1fae5; color: #047857; }
-.badge.cancelled { background: #e5e7eb; color: #6b7280; }
+.badge.cancelled { background: #e5e7eb; color: #4b5563; }
 
 .invoice-item {
   border: 1px solid var(--border);
@@ -281,8 +288,8 @@ textarea { min-height: 70px; resize: vertical; }
 .success-box { background: #dcfce7; color: #15803d; padding: 11px 13px; border-radius: 11px; margin-bottom: 12px; font-size: 14px; border: 1px solid #b7ecc7; }
 
 .checkbox-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; }
-.checkbox-row input { width: auto; margin-top: 3px; }
-.checkbox-row label { margin: 0; font-size: 14px; color: var(--text); }
+.checkbox-row input { width: 28px; height: 28px; flex-shrink: 0; margin-top: 0; accent-color: var(--navy-800); cursor: pointer; }
+.checkbox-row label { margin: 0; font-size: 14px; color: var(--text); cursor: pointer; }
 
 .center { text-align: center; }
 .muted { color: var(--muted); font-size: 13px; }

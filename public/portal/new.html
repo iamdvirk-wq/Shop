@@ -209,6 +209,10 @@ async function ensureSaved() {
 async function save(thenSubmit) {
   const errorBox = document.getElementById("error");
   errorBox.innerHTML = "";
+  const btn = document.getElementById(thenSubmit ? "submitBtn" : "saveDraft");
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = thenSubmit ? "Submitting…" : "Saving…";
   try {
     await ensureSaved();
     if (!thenSubmit) {
@@ -222,6 +226,8 @@ async function save(thenSubmit) {
     window.location.href = "/portal/invoices.html";
   } catch (err) {
     showError(errorBox, err.message);
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
 }
 
